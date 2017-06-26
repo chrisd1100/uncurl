@@ -1,0 +1,10 @@
+src/*.o
+build/*.obj
+build/uncurl.exe
+build/uncurl
+build/libuncurl.a
+build/libuncurl.dylib
+build/libuncurl.so
+build/libuncurl.dll
+build/libuncurl.lib
+build/libuncurl.exp

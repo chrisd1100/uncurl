@@ -1,0 +1,5 @@
+OPENSSL
+--------
+./Configure --prefix=$HOME/install --api=1.1.0 no-dso no-engine linux-armv4 -fPIC
+make
+make install
