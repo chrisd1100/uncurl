@@ -21,7 +21,6 @@ SYS_LIBS = \
 	kernel32.lib \
 	user32.lib \
 	ws2_32.lib \
-	crypt32.lib \
 	advapi32.lib
 
 STATIC_LIBS = \
@@ -42,9 +41,7 @@ INCLUDES = \
 DEFS = \
 	-DWIN32_LEAN_AND_MEAN \
 	-DWIN32 \
-	-D__WINDOWS__ \
-	-D_CRT_SECURE_NO_WARNINGS \
-	-D_WINSOCK_DEPRECATED_NO_WARNINGS
+	-D__WINDOWS__
 
 FLAGS = \
 	/W4 \

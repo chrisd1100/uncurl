@@ -110,13 +110,13 @@ int32_t net_poll(struct net_context *nc, int32_t net_event, int32_t timeout_ms)
 
 	e = poll(&fd, 1, timeout_ms);
 
-	return (e == 0) ? NET_ERR_TIMEOUT : (e < 0) ? NET_ERR_POLL : UNCURL_OK;
+	return (e == 0) ? UNCURL_NET_ERR_TIMEOUT : (e < 0) ? UNCURL_NET_ERR_POLL : UNCURL_OK;
 }
 
 int32_t net_getip4(char *host, char *ip4, uint32_t ip4_len)
 {
 	int32_t e;
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 	struct addrinfo hints;
 	struct addrinfo *servinfo = NULL;
 
@@ -127,12 +127,12 @@ int32_t net_getip4(char *host, char *ip4, uint32_t ip4_len)
 	hints.ai_protocol = IPPROTO_TCP;
 
 	e = getaddrinfo(host, NULL, &hints, &servinfo);
-	if (e != 0) {r = NET_ERR_RESOLVE; goto net_getip4_failure;}
+	if (e != 0) {r = UNCURL_NET_ERR_RESOLVE; goto net_getip4_failure;}
 
 	//attempt to convert the first returned address into string
 	struct sockaddr_in *addr = (struct sockaddr_in *) servinfo->ai_addr;
 	const char *dst = inet_ntop(AF_INET, &addr->sin_addr, ip4, ip4_len);
-	if (!dst) {r = NET_ERR_NTOP; goto net_getip4_failure;}
+	if (!dst) {r = UNCURL_NET_ERR_NTOP; goto net_getip4_failure;}
 
 	r = UNCURL_OK;
 
@@ -146,7 +146,7 @@ int32_t net_getip4(char *host, char *ip4, uint32_t ip4_len)
 int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct net_opts *opts)
 {
 	int32_t e;
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 
 	struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
 
@@ -154,30 +154,30 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 	memcpy(&nc->opts, opts, sizeof(struct net_opts));
 
 	nc->s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (nc->s == INVALID_SOCKET) {r = NET_ERR_SOCKET; goto net_connect_failure;}
+	if (nc->s == INVALID_SOCKET) {r = UNCURL_NET_ERR_SOCKET; goto net_connect_failure;}
 
 	//put socket in nonblocking mode, allows us to implement connection timeout
 	e = net_set_nonblocking(nc->s);
-	if (e != 0) {r = NET_ERR_BLOCKMODE; goto net_connect_failure;}
+	if (e != 0) {r = UNCURL_NET_ERR_BLOCKMODE; goto net_connect_failure;}
 
 	struct sockaddr_in addr;
 	memset(&addr, 0, sizeof(struct sockaddr_in));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = inet_addr(ip4);
+	inet_pton(AF_INET, ip4, &addr.sin_addr);
 
 	//initiate the socket connection
 	e = connect(nc->s, (struct sockaddr *) &addr, sizeof(struct sockaddr_in));
 
 	//initial socket state must be 'in progress' for nonblocking connect
-	if (net_error() != net_in_progress()) {r = NET_ERR_CONNECT; goto net_connect_failure;}
+	if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; goto net_connect_failure;}
 
 	//wait for socket to be ready to write
 	e = net_poll(nc, NET_POLLOUT, nc->opts.connect_timeout_ms);
 	if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
 
 	//if the socket is clear of errors, we made a successful connection
-	if (net_get_error(nc->s) != 0) {r = NET_ERR_CONNECT_FINAL; goto net_connect_failure;}
+	if (net_get_error(nc->s) != 0) {r = UNCURL_NET_ERR_CONNECT_FINAL; goto net_connect_failure;}
 
 	//success
 	return UNCURL_OK;
@@ -200,7 +200,7 @@ int32_t net_write(void *ctx, char *buf, uint32_t buf_size)
 
 	while (total < buf_size) {
 		n = send(nc->s, buf + total, buf_size - total, 0);
-		if (n <= 0) return NET_ERR_WRITE;
+		if (n <= 0) return UNCURL_NET_ERR_WRITE;
 		total += n;
 	}
 
@@ -222,8 +222,8 @@ int32_t net_read(void *ctx, char *buf, uint32_t buf_size)
 		n = recv(nc->s, buf + total, buf_size - total, 0);
 		if (n <= 0) {
 			if (net_error() == net_would_block()) continue;
-			if (n == 0) return NET_ERR_CLOSED;
-			return NET_ERR_READ;
+			if (n == 0) return UNCURL_NET_ERR_CLOSED;
+			return UNCURL_NET_ERR_READ;
 		}
 
 		total += n;

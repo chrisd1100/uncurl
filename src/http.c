@@ -2,14 +2,12 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
 
 #include "uncurl/status.h"
 
 #define REALLOC_INCR 20
-#define LEN_CLHEADER 256
 
 #if defined(__WINDOWS__)
 	#define strtok_r(a, b, c) strtok_s(a, b, c)
@@ -31,27 +29,17 @@ static const char HTTP_REQUEST_FMT[] =
 	"%s %s HTTP/1.1\r\n"
 	"Host: %s\r\n"
 	"%s"
-	"%s"
-	"\r\n"
-	"%s";
+	"\r\n";
 
-char *http_request(char *method, char *host, char *path, char *header, char *body, uint32_t body_len)
+char *http_request(char *method, char *host, char *path, char *fields)
 {
-	//if there is a body present, we will automatically set the Content-Length header
-	char cl_header[LEN_CLHEADER];
-	cl_header[0] = '\0';
-
-	if (!body) body = "";
-	if (!header) header = "";
-
-	if (body_len > 0)
-		snprintf(cl_header, LEN_CLHEADER, "Content-Length: %u\r\n", body_len);
+	if (!fields) fields = "";
 
 	size_t len = sizeof(HTTP_REQUEST_FMT) + strlen(method) + strlen(host) +
-		strlen(path) + strlen(header) + body_len + strlen(cl_header) + 1;
+		strlen(path) + strlen(fields) + 1;
 	char *final = malloc(len);
 
-	snprintf(final, len, HTTP_REQUEST_FMT, method, path, host, cl_header, header, body);
+	snprintf(final, len, HTTP_REQUEST_FMT, method, path, host, fields);
 
 	return final;
 }
@@ -131,7 +119,7 @@ void http_free_header(struct http_header *h)
 
 static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_int, char **val_str)
 {
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 
 	char *lc_key = strdup(key);
 
@@ -150,7 +138,7 @@ static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_in
 				*val_int = strtol(h->pairs[x].val, &endptr, 10);
 
 				if (endptr == h->pairs[x].val) {
-					r = HTTP_ERR_PARSE_HEADER;
+					r = UNCURL_HTTP_ERR_PARSE_HEADER;
 				} else r = UNCURL_OK;
 			}
 
@@ -158,7 +146,7 @@ static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_in
 		}
 	}
 
-	r = HTTP_ERR_NOT_FOUND;
+	r = UNCURL_HTTP_ERR_NOT_FOUND;
 
 	http_get_header_end:
 
@@ -169,16 +157,16 @@ static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_in
 
 int32_t http_get_status_code(struct http_header *h, int32_t *status_code)
 {
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 	char *tok, *ptr = NULL;
 
 	char *tmp_first_line = strdup(h->first_line);
 
 	tok = strtok_r(tmp_first_line, " ", &ptr);
-	if (!tok) {r = HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
 
 	tok = strtok_r(NULL, " ", &ptr);
-	if (!tok) {r = HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
 
 	*status_code = strtol(tok, NULL, 10);
 
@@ -201,31 +189,28 @@ int32_t http_get_header_str(struct http_header *h, char *key, char **val_str)
 	return http_get_header(h, key, NULL, val_str);
 }
 
-char *http_request_header(va_list args)
+char *http_set_header(char *header, char *name, int32_t type, void *value)
 {
-	uint32_t offset = 0;
+	size_t val_len = (type == HTTP_INT) ? 10 : strlen((char *) value);
+	size_t len = header ? strlen(header) : 0;
+	size_t new_len = len + strlen(name) + 2 + val_len + 3; //existing len, name len, ": ", val_len, "\r\n\0"
 
-	char *header = malloc(1);
+	header = realloc(header, new_len);
 
-	char *val = va_arg(args, char *);
+	if (type == HTTP_INT) {
+		int32_t *val_int = (int32_t *) value;
+		snprintf(header + len, new_len, "%s: %d\r\n", name, *val_int);
 
-	while (val) {
-		uint32_t len = (int32_t) strlen(val) + 2;
-		header = realloc(header, len + offset + 1);
-		snprintf(header + offset, len + 1, "%s\r\n", val);
-		offset += len;
-
-		val = va_arg(args, char *);
+	} else if (type == HTTP_STRING) {
+		snprintf(header + len, new_len, "%s: %s\r\n", name, (char *) value);
 	}
-
-	header[offset] = '\0';
 
 	return header;
 }
 
 int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *port, char **path)
 {
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 	char *tok, *ptr = NULL;
 	char *tok2, *ptr2 = NULL;
 
@@ -238,17 +223,17 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 
 	//scheme
 	tok = strtok_r(url, ":", &ptr);
-	if (!tok) {r = HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
 	http_lc(tok);
 	if (!strcmp(tok, "https")) {
 		*scheme = UNCURL_HTTPS;
 	} else if (!strcmp(tok, "http")) {
 		*scheme = UNCURL_HTTP;
-	} else {r = HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
+	} else {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
 
 	//host + port
 	tok = strtok_r(NULL, "/", &ptr);
-	if (!tok) {r = HTTP_ERR_PARSE_HOST; goto http_parse_url_end;}
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_HOST; goto http_parse_url_end;}
 
 	//try to find a port
 	*host = strdup(tok);

@@ -32,7 +32,7 @@ static int32_t tlss_load_root_certs(struct tls_state *tlss)
 	int32_t r = UNCURL_OK;
 
 	X509_STORE *store = SSL_CTX_get_cert_store(tlss->ctx);
-	if (!store) return TLS_ERR_CACERT;
+	if (!store) return UNCURL_TLS_ERR_CACERT;
 
 	for (int32_t x = 0; x < CACERT_LEN && r == UNCURL_OK; x++) {
 		BIO *bio = BIO_new_mem_buf(CACERT[x], -1);
@@ -43,7 +43,7 @@ static int32_t tlss_load_root_certs(struct tls_state *tlss)
 			X509_STORE_add_cert(store, cert);
 			X509_free(cert);
 		} else {
-			r = TLS_ERR_CACERT;
+			r = UNCURL_TLS_ERR_CACERT;
 		}
 
 		BIO_free(bio);
@@ -69,7 +69,7 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 
 	//the SSL context can be reused for multiple connections
 	tlss->ctx = SSL_CTX_new(TLS_client_method());
-	if (!tlss->ctx) return TLS_ERR_CONTEXT;
+	if (!tlss->ctx) return UNCURL_TLS_ERR_CONTEXT;
 
 	SSL_CTX_set_verify(tlss->ctx, SSL_VERIFY_PEER, NULL);
 	SSL_CTX_set_verify_depth(tlss->ctx, TLS_DEF_VERIFY_DEPTH);
@@ -120,7 +120,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	struct net_context *nc, struct tls_opts *opts)
 {
 	int32_t e;
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 
 	struct tls_context *tls = *tls_in = calloc(1, sizeof(struct tls_context));
 
@@ -131,10 +131,10 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	tls->nc = nc;
 
 	tls->ssl = SSL_new(tlss->ctx);
-	if (!tls->ssl) {r = TLS_ERR_SSL; goto tls_connect_failure;}
+	if (!tls->ssl) {r = UNCURL_TLS_ERR_SSL; goto tls_connect_failure;}
 
 	e = SSL_set_fd(tls->ssl, net_get_fd(tls->nc));
-	if (e != 1) {r = TLS_ERR_FD; goto tls_connect_failure;}
+	if (e != 1) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
 
 	tls_connect_retry:
 
@@ -148,7 +148,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 
 	//if not successful, check for bad file descriptor
 	int32_t ne = net_error();
-	if (ne == net_bad_fd()) {r = TLS_ERR_FD; goto tls_connect_failure;}
+	if (ne == net_bad_fd()) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
 
 	//if not successful, see if we neeed to poll for more data
 	int32_t ssl_e = SSL_get_error(tls->ssl, e);
@@ -158,7 +158,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 		r = e;
 	}
 
-	r = TLS_ERR_CONNECT;
+	r = UNCURL_TLS_ERR_CONNECT;
 
 	//cleanup on failure
 	tls_connect_failure:
@@ -176,7 +176,7 @@ int32_t tls_write(void *ctx, char *buf, uint32_t buf_size)
 	int32_t n;
 
 	n = SSL_write(tls->ssl, buf, buf_size);
-	if (n != (int32_t) buf_size) return TLS_ERR_WRITE;
+	if (n != (int32_t) buf_size) return UNCURL_TLS_ERR_WRITE;
 
 	return UNCURL_OK;
 }
@@ -203,8 +203,8 @@ int32_t tls_read(void *ctx, char *buf, uint32_t buf_size)
 		if (n <= 0) {
 			int32_t ssl_e = SSL_get_error(tls->ssl, n);
 			if (ssl_e == SSL_ERROR_WANT_READ) continue;
-			if (ssl_e == SSL_ERROR_ZERO_RETURN) return TLS_ERR_CLOSED;
-			return TLS_ERR_READ;
+			if (ssl_e == SSL_ERROR_ZERO_RETURN) return UNCURL_TLS_ERR_CLOSED;
+			return UNCURL_TLS_ERR_READ;
 		}
 
 		total += n;

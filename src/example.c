@@ -14,36 +14,34 @@ int32_t uncurl_get(struct uncurl *uc, char *url)
 	int32_t e;
 
 	//parse the URL
-	uint16_t port;
-	int32_t scheme;
-	char *host = NULL, *path = NULL;
-	e = uncurl_parse_url(url, &scheme, &host, &port, &path);
+	struct uncurl_info uci;
+	e = uncurl_parse_url(url, &uci);
+
 	if (e == UNCURL_OK) {
+		struct uncurl_conn *ucc;
 
 		//make the socket/TLS connection
-		e = uncurl_connect(uc, scheme, host, port);
+		e = uncurl_connect(uc, &ucc, uci.scheme, uci.host, uci.port);
 		if (e == UNCURL_OK) {
 
 			//set request headers
-			uncurl_set_request_header(uc,
-				"User-Agent: uncurl/0.0",
-				"Referer: https://www.google.com/",
-			NULL);
+			uncurl_set_header_str(ucc, "User-Agent", "uncurl/0.0");
+			uncurl_set_header_str(ucc, "Referer", "https://www.google.com/");
 
 			//send the request header and body
-			e = uncurl_send_request(uc, "GET", path, NULL, 0);
+			e = uncurl_send_header(ucc, "GET", uci.path);
 			if (e == UNCURL_OK) {
 
 				//read the response header
-				e = uncurl_read_response_header(uc);
+				e = uncurl_read_header(ucc);
 				if (e == UNCURL_OK) {
 					//get the status code
-					e = uncurl_get_status_code(uc, &status_code);
+					e = uncurl_get_status_code(ucc, &status_code);
 
 					//read the response body
 					char *response = NULL;
 					uint32_t response_len = 0;
-					e = uncurl_read_response_body(uc, &response, &response_len);
+					e = uncurl_read_body_all(ucc, &response, &response_len);
 					if (e == UNCURL_OK) {
 						printf("%s\n", response);
 						free(response);
@@ -51,12 +49,11 @@ int32_t uncurl_get(struct uncurl *uc, char *url)
 				}
 			}
 
-			uncurl_close(uc);
+			uncurl_close(ucc);
 		}
 	}
 
-	free(host);
-	free(path);
+	uncurl_free_info(&uci);
 
 	return status_code;
 }
