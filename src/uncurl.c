@@ -84,6 +84,20 @@ UNCURL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
 }
 
 
+/*** HEADERS ***/
+
+UNCURL_EXPORT int8_t uncurl_check_header(struct uncurl_conn *ucc, char *name, char *subval)
+{
+	int32_t e;
+	char *val = NULL;
+
+	e = http_get_header_str(ucc->hres, name, &val);
+	if (e == UNCURL_OK && strstr(http_lc(val), subval)) return 1;
+
+	return 0;
+}
+
+
 /*** CONNECTION ***/
 
 UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc_in,
@@ -322,9 +336,7 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 	*body_len = 0;
 
 	//look for chunked response
-	char *te = NULL;
-	e = http_get_header_str(ucc->hres, "Transfer-Encoding", &te);
-	if (e == UNCURL_OK && strstr(http_lc(te), "chunked")) {
+	if (uncurl_check_header(ucc, "Transfer-Encoding", "chunked")) {
 		pthread_mutex_lock(&ucc->uc->mutex);
 
 		e = uncurl_response_body_chunked(ucc, body, body_len);
@@ -340,6 +352,8 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 	if (r != UNCURL_OK) {
 		e = http_get_header_int(ucc->hres, "Content-Length", (int32_t *) body_len);
 		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
+
+		if (*body_len == 0) {r = UNCURL_ERR_NO_BODY; goto uncurl_response_body_end;}
 
 		*body = calloc(*body_len + 1, 1);
 
