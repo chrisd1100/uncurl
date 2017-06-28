@@ -45,7 +45,6 @@ struct uncurl_conn {
 	int32_t (*read)(void *ctx, char *buf, uint32_t buf_size);
 	int32_t (*write)(void *ctx, char *buf, uint32_t buf_size);
 
-	int32_t scheme;
 	char *host;
 	uint16_t port;
 };
@@ -93,14 +92,11 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc
 	int32_t r = ERR_DEFAULT;
 	int32_t e;
 
-	pthread_mutex_lock(&uc->mutex);
-
 	//create uncurl_conn and attach uncurl to it
 	struct uncurl_conn *ucc = *ucc_in = calloc(1, sizeof(struct uncurl_conn));
 	ucc->uc = uc;
 
 	//set state
-	ucc->scheme = scheme;
 	ucc->host = strdup(host);
 	ucc->port = port;
 
@@ -119,7 +115,12 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc
 	ucc->write = net_write;
 
 	if (scheme == UNCURL_HTTPS) {
+		pthread_mutex_lock(&uc->mutex);
+
 		e = tls_connect(&ucc->tls, uc->tlss, ucc->net, &uc->topts);
+
+		pthread_mutex_unlock(&uc->mutex);
+
 		if (e != UNCURL_OK) {r = e; goto uncurl_connect_end;}
 
 		//tls read/write callbacks
@@ -131,8 +132,6 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc
 	r = UNCURL_OK;
 
 	uncurl_connect_end:
-
-	pthread_mutex_unlock(&uc->mutex);
 
 	return r;
 }
@@ -164,37 +163,43 @@ UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 
 /*** REQUEST ***/
 
-UNCURL_EXPORT void uncurl_set_request_header(struct uncurl_conn *ucc, ...)
+UNCURL_EXPORT void uncurl_set_header(struct uncurl_conn *ucc, char *field)
 {
-	va_list args;
+	ucc->hreq = http_request_header(ucc->hreq, field);
+}
+
+UNCURL_EXPORT void uncurl_clear_header(struct uncurl_conn *ucc)
+{
+	free(ucc->hreq);
+	ucc->hreq = NULL;
+}
+
+UNCURL_EXPORT int32_t uncurl_send_header(struct uncurl_conn *ucc, char *method, char *path, uint32_t body_len)
+{
+	int32_t e;
+
+	//generate the HTTP request header
+	char *req = http_request(method, ucc->host, path, ucc->hreq, body_len);
 
 	pthread_mutex_lock(&ucc->uc->mutex);
 
-	//free existing hreq
-	if (ucc->hreq) free(ucc->hreq);
-	ucc->hreq = NULL;
-
-	va_start(args, ucc);
-
-	ucc->hreq = http_request_header(args);
-
-	va_end(args);
+	//send the request header to the HTTP server
+	e = ucc->write(ucc->ctx, req, (uint32_t) strlen(req));
 
 	pthread_mutex_unlock(&ucc->uc->mutex);
+
+	free(req);
+
+	return e;
 }
 
-UNCURL_EXPORT int32_t uncurl_send_request(struct uncurl_conn *ucc, char *method, char *path, char *body, uint32_t body_len)
+UNCURL_EXPORT int32_t uncurl_send_body(struct uncurl_conn *ucc, char *body, uint32_t body_len)
 {
 	int32_t e;
 
 	pthread_mutex_lock(&ucc->uc->mutex);
 
-	//generate the HTTP request header
-	char *req = http_request(method, ucc->host, path, ucc->hreq, body, body_len);
-
-	//send the request header to the HTTP server
-	e = ucc->write(ucc->ctx, req, (uint32_t) strlen(req));
-	free(req);
+	e = ucc->write(ucc->ctx, body, body_len);
 
 	pthread_mutex_unlock(&ucc->uc->mutex);
 
@@ -204,7 +209,7 @@ UNCURL_EXPORT int32_t uncurl_send_request(struct uncurl_conn *ucc, char *method,
 
 /*** READING HEADER ***/
 
-static int32_t uncurl_read_header(struct uncurl_conn *ucc, char **header)
+static int32_t uncurl_read_header_(struct uncurl_conn *ucc, char **header)
 {
 	int32_t e = UNCURL_ERR_HEADER;
 	char *h = *header = calloc(LEN_HTTP_HEADER, 1);
@@ -223,27 +228,27 @@ static int32_t uncurl_read_header(struct uncurl_conn *ucc, char **header)
 	return e ? e : UNCURL_ERR_HEADER;
 }
 
-UNCURL_EXPORT int32_t uncurl_read_response_header(struct uncurl_conn *ucc)
+UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
 {
 	int32_t e;
-
-	pthread_mutex_lock(&ucc->uc->mutex);
 
 	//free any exiting response headers
 	if (ucc->hres) http_free_header(ucc->hres);
 	ucc->hres = NULL;
 
+	pthread_mutex_lock(&ucc->uc->mutex);
+
 	//read the HTTP response header
 	char *header = NULL;
-	e = uncurl_read_header(ucc, &header);
+	e = uncurl_read_header_(ucc, &header);
+
+	pthread_mutex_unlock(&ucc->uc->mutex);
 
 	if (e == UNCURL_OK) {
 		//parse the header into the http_header struct
 		ucc->hres = http_parse_header(header);
 		free(header);
 	}
-
-	pthread_mutex_unlock(&ucc->uc->mutex);
 
 	return e;
 }
@@ -303,7 +308,7 @@ static int32_t uncurl_response_body_chunked(struct uncurl_conn *ucc, char **body
 	return UNCURL_OK;
 }
 
-UNCURL_EXPORT int32_t uncurl_read_response_body(struct uncurl_conn *ucc, char **body, uint32_t *body_len)
+UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body, uint32_t *body_len)
 {
 	int32_t r = ERR_DEFAULT;
 	int32_t e;
@@ -311,13 +316,16 @@ UNCURL_EXPORT int32_t uncurl_read_response_body(struct uncurl_conn *ucc, char **
 	*body = NULL;
 	*body_len = 0;
 
-	pthread_mutex_lock(&ucc->uc->mutex);
-
 	//look for chunked response
 	char *te = NULL;
 	e = http_get_header_str(ucc->hres, "Transfer-Encoding", &te);
 	if (e == UNCURL_OK && strstr(http_lc(te), "chunked")) {
+		pthread_mutex_lock(&ucc->uc->mutex);
+
 		e = uncurl_response_body_chunked(ucc, body, body_len);
+
+		pthread_mutex_unlock(&ucc->uc->mutex);
+
 		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
 
 		r = UNCURL_OK;
@@ -329,7 +337,13 @@ UNCURL_EXPORT int32_t uncurl_read_response_body(struct uncurl_conn *ucc, char **
 		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
 
 		*body = calloc(*body_len + 1, 1);
+
+		pthread_mutex_lock(&ucc->uc->mutex);
+
 		e = ucc->read(ucc->ctx, *body, *body_len);
+
+		pthread_mutex_unlock(&ucc->uc->mutex);
+
 		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
 
 		r = UNCURL_OK;
@@ -341,8 +355,6 @@ UNCURL_EXPORT int32_t uncurl_read_response_body(struct uncurl_conn *ucc, char **
 		free(*body);
 		*body = NULL;
 	}
-
-	pthread_mutex_unlock(&ucc->uc->mutex);
 
 	return r;
 }
@@ -356,7 +368,15 @@ UNCURL_EXPORT int32_t uncurl_get_status_code(struct uncurl_conn *ucc, int32_t *s
 	return http_get_status_code(ucc->hres, status_code);
 }
 
-UNCURL_EXPORT int32_t uncurl_parse_url(char *url, int32_t *scheme, char **host, uint16_t *port, char **path)
+UNCURL_EXPORT int32_t uncurl_parse_url(char *url, struct uncurl_info *uci)
 {
-	return http_parse_url(url, scheme, host, port, path);
+	memset(uci, 0, sizeof(struct uncurl_info));
+
+	return http_parse_url(url, &uci->scheme, &uci->host, &uci->port, &uci->path);
+}
+
+UNCURL_EXPORT void uncurl_free_info(struct uncurl_info *uci)
+{
+	free(uci->host);
+	free(uci->path);
 }

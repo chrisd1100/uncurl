@@ -2,7 +2,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -32,26 +31,23 @@ static const char HTTP_REQUEST_FMT[] =
 	"Host: %s\r\n"
 	"%s"
 	"%s"
-	"\r\n"
-	"%s";
+	"\r\n";
 
-char *http_request(char *method, char *host, char *path, char *header, char *body, uint32_t body_len)
+char *http_request(char *method, char *host, char *path, char *header, uint32_t body_len)
 {
-	//if there is a body present, we will automatically set the Content-Length header
-	char cl_header[LEN_CLHEADER];
-	cl_header[0] = '\0';
-
-	if (!body) body = "";
 	if (!header) header = "";
 
+	//automatically set content-length field when body_len is present
+	char cl_header[LEN_CLHEADER];
+	cl_header[0] = '\0';
 	if (body_len > 0)
 		snprintf(cl_header, LEN_CLHEADER, "Content-Length: %u\r\n", body_len);
 
 	size_t len = sizeof(HTTP_REQUEST_FMT) + strlen(method) + strlen(host) +
-		strlen(path) + strlen(header) + body_len + strlen(cl_header) + 1;
+		strlen(path) + strlen(header) + strlen(cl_header) + 1;
 	char *final = malloc(len);
 
-	snprintf(final, len, HTTP_REQUEST_FMT, method, path, host, cl_header, header, body);
+	snprintf(final, len, HTTP_REQUEST_FMT, method, path, host, cl_header, header);
 
 	return final;
 }
@@ -201,24 +197,13 @@ int32_t http_get_header_str(struct http_header *h, char *key, char **val_str)
 	return http_get_header(h, key, NULL, val_str);
 }
 
-char *http_request_header(va_list args)
+char *http_request_header(char *header, char *field)
 {
-	uint32_t offset = 0;
+	size_t len = header ? strlen(header) : 0;
+	size_t new_len = len + strlen(field) + 3;
 
-	char *header = malloc(1);
-
-	char *val = va_arg(args, char *);
-
-	while (val) {
-		uint32_t len = (int32_t) strlen(val) + 2;
-		header = realloc(header, len + offset + 1);
-		snprintf(header + offset, len + 1, "%s\r\n", val);
-		offset += len;
-
-		val = va_arg(args, char *);
-	}
-
-	header[offset] = '\0';
+	header = realloc(header, new_len);
+	snprintf(header + len, new_len, "%s\r\n", field);
 
 	return header;
 }
