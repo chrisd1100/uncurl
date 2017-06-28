@@ -164,7 +164,7 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 	memset(&addr, 0, sizeof(struct sockaddr_in));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = inet_addr(ip4);
+	inet_pton(AF_INET, ip4, &addr.sin_addr);
 
 	//initiate the socket connection
 	e = connect(nc->s, (struct sockaddr *) &addr, sizeof(struct sockaddr_in));
