@@ -47,6 +47,7 @@ UNCURL_EXPORT void uncurl_clear_header(struct uncurl_conn *ucc);
 //XXX uncurl_read_body(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint32_t *bytes_read);
 //XXX uncurl_get_header_int(struct uncurl_conn *ucc, char *name, int32_t *value);
 //XXX uncurl_get_header_str(struct uncurl_conn *ucc, char *name, char **value);
+//XXX uncurl_check_header(struct uncurl_conn *ucc, char *name, char *substr);
 
 #ifdef __cplusplus
 }
