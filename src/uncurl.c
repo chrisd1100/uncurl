@@ -53,7 +53,7 @@ struct uncurl_conn {
 
 /*** INITIALIZATION ***/
 
-DLL_EXPORT void uncurl_destroy(struct uncurl *uc)
+UNCURL_EXPORT void uncurl_destroy(struct uncurl *uc)
 {
 	if (!uc) return;
 
@@ -64,7 +64,7 @@ DLL_EXPORT void uncurl_destroy(struct uncurl *uc)
 	free(uc);
 }
 
-DLL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
+UNCURL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
 {
 	int32_t e;
 
@@ -87,7 +87,7 @@ DLL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
 
 /*** CONNECTION ***/
 
-DLL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc_in,
+UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc_in,
 	int32_t scheme, char *host, uint16_t port)
 {
 	int32_t r = ERR_DEFAULT;
@@ -137,7 +137,7 @@ DLL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc_in
 	return r;
 }
 
-DLL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
+UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 {
 	pthread_mutex_lock(&ucc->uc->mutex);
 
@@ -164,7 +164,7 @@ DLL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 
 /*** REQUEST ***/
 
-DLL_EXPORT void uncurl_set_request_header(struct uncurl_conn *ucc, ...)
+UNCURL_EXPORT void uncurl_set_request_header(struct uncurl_conn *ucc, ...)
 {
 	va_list args;
 
@@ -183,7 +183,7 @@ DLL_EXPORT void uncurl_set_request_header(struct uncurl_conn *ucc, ...)
 	pthread_mutex_unlock(&ucc->uc->mutex);
 }
 
-DLL_EXPORT int32_t uncurl_send_request(struct uncurl_conn *ucc, char *method, char *path, char *body, uint32_t body_len)
+UNCURL_EXPORT int32_t uncurl_send_request(struct uncurl_conn *ucc, char *method, char *path, char *body, uint32_t body_len)
 {
 	int32_t e;
 
@@ -223,7 +223,7 @@ static int32_t uncurl_read_header(struct uncurl_conn *ucc, char **header)
 	return e ? e : UNCURL_ERR_HEADER;
 }
 
-DLL_EXPORT int32_t uncurl_read_response_header(struct uncurl_conn *ucc)
+UNCURL_EXPORT int32_t uncurl_read_response_header(struct uncurl_conn *ucc)
 {
 	int32_t e;
 
@@ -303,7 +303,7 @@ static int32_t uncurl_response_body_chunked(struct uncurl_conn *ucc, char **body
 	return UNCURL_OK;
 }
 
-DLL_EXPORT int32_t uncurl_read_response_body(struct uncurl_conn *ucc, char **body, uint32_t *body_len)
+UNCURL_EXPORT int32_t uncurl_read_response_body(struct uncurl_conn *ucc, char **body, uint32_t *body_len)
 {
 	int32_t r = ERR_DEFAULT;
 	int32_t e;
@@ -350,13 +350,13 @@ DLL_EXPORT int32_t uncurl_read_response_body(struct uncurl_conn *ucc, char **bod
 
 /*** HELPERS ***/
 
-DLL_EXPORT int32_t uncurl_get_status_code(struct uncurl_conn *ucc, int32_t *status_code)
+UNCURL_EXPORT int32_t uncurl_get_status_code(struct uncurl_conn *ucc, int32_t *status_code)
 {
 	*status_code = 0;
 	return http_get_status_code(ucc->hres, status_code);
 }
 
-DLL_EXPORT int32_t uncurl_parse_url(char *url, int32_t *scheme, char **host, uint16_t *port, char **path)
+UNCURL_EXPORT int32_t uncurl_parse_url(char *url, int32_t *scheme, char **host, uint16_t *port, char **path)
 {
 	return http_parse_url(url, scheme, host, port, path);
 }
