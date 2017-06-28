@@ -127,7 +127,7 @@ void http_free_header(struct http_header *h)
 
 static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_int, char **val_str)
 {
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 
 	char *lc_key = strdup(key);
 
@@ -146,7 +146,7 @@ static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_in
 				*val_int = strtol(h->pairs[x].val, &endptr, 10);
 
 				if (endptr == h->pairs[x].val) {
-					r = HTTP_ERR_PARSE_HEADER;
+					r = UNCURL_HTTP_ERR_PARSE_HEADER;
 				} else r = UNCURL_OK;
 			}
 
@@ -154,7 +154,7 @@ static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_in
 		}
 	}
 
-	r = HTTP_ERR_NOT_FOUND;
+	r = UNCURL_HTTP_ERR_NOT_FOUND;
 
 	http_get_header_end:
 
@@ -165,16 +165,16 @@ static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_in
 
 int32_t http_get_status_code(struct http_header *h, int32_t *status_code)
 {
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 	char *tok, *ptr = NULL;
 
 	char *tmp_first_line = strdup(h->first_line);
 
 	tok = strtok_r(tmp_first_line, " ", &ptr);
-	if (!tok) {r = HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
 
 	tok = strtok_r(NULL, " ", &ptr);
-	if (!tok) {r = HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
 
 	*status_code = strtol(tok, NULL, 10);
 
@@ -210,7 +210,7 @@ char *http_request_header(char *header, char *field)
 
 int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *port, char **path)
 {
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 	char *tok, *ptr = NULL;
 	char *tok2, *ptr2 = NULL;
 
@@ -223,17 +223,17 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 
 	//scheme
 	tok = strtok_r(url, ":", &ptr);
-	if (!tok) {r = HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
 	http_lc(tok);
 	if (!strcmp(tok, "https")) {
 		*scheme = UNCURL_HTTPS;
 	} else if (!strcmp(tok, "http")) {
 		*scheme = UNCURL_HTTP;
-	} else {r = HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
+	} else {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
 
 	//host + port
 	tok = strtok_r(NULL, "/", &ptr);
-	if (!tok) {r = HTTP_ERR_PARSE_HOST; goto http_parse_url_end;}
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_HOST; goto http_parse_url_end;}
 
 	//try to find a port
 	*host = strdup(tok);

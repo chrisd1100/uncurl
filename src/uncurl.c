@@ -89,7 +89,7 @@ UNCURL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
 UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc_in,
 	int32_t scheme, char *host, uint16_t port)
 {
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 	int32_t e;
 
 	//create uncurl_conn and attach uncurl to it
@@ -310,7 +310,7 @@ static int32_t uncurl_response_body_chunked(struct uncurl_conn *ucc, char **body
 
 UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body, uint32_t *body_len)
 {
-	int32_t r = ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_DEFAULT;
 	int32_t e;
 
 	*body = NULL;
