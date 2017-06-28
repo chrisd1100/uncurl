@@ -25,11 +25,11 @@ int32_t uncurl_get(struct uncurl *uc, char *url)
 		if (e == UNCURL_OK) {
 
 			//set request headers
-			uncurl_set_header(ucc, "User-Agent: uncurl/0.0");
-			uncurl_set_header(ucc, "Referer: https://www.google.com/");
+			uncurl_set_header_str(ucc, "User-Agent", "uncurl/0.0");
+			uncurl_set_header_str(ucc, "Referer", "https://www.google.com/");
 
 			//send the request header and body
-			e = uncurl_send_header(ucc, "GET", uci.path, 0);
+			e = uncurl_send_header(ucc, "GET", uci.path);
 			if (e == UNCURL_OK) {
 
 				//read the response header

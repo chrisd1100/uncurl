@@ -8,7 +8,6 @@
 #include "uncurl/status.h"
 
 #define REALLOC_INCR 20
-#define LEN_CLHEADER 256
 
 #if defined(__WINDOWS__)
 	#define strtok_r(a, b, c) strtok_s(a, b, c)
@@ -30,24 +29,17 @@ static const char HTTP_REQUEST_FMT[] =
 	"%s %s HTTP/1.1\r\n"
 	"Host: %s\r\n"
 	"%s"
-	"%s"
 	"\r\n";
 
-char *http_request(char *method, char *host, char *path, char *header, uint32_t body_len)
+char *http_request(char *method, char *host, char *path, char *fields)
 {
-	if (!header) header = "";
-
-	//automatically set content-length field when body_len is present
-	char cl_header[LEN_CLHEADER];
-	cl_header[0] = '\0';
-	if (body_len > 0)
-		snprintf(cl_header, LEN_CLHEADER, "Content-Length: %u\r\n", body_len);
+	if (!fields) fields = "";
 
 	size_t len = sizeof(HTTP_REQUEST_FMT) + strlen(method) + strlen(host) +
-		strlen(path) + strlen(header) + strlen(cl_header) + 1;
+		strlen(path) + strlen(fields) + 1;
 	char *final = malloc(len);
 
-	snprintf(final, len, HTTP_REQUEST_FMT, method, path, host, cl_header, header);
+	snprintf(final, len, HTTP_REQUEST_FMT, method, path, host, fields);
 
 	return final;
 }
@@ -197,13 +189,21 @@ int32_t http_get_header_str(struct http_header *h, char *key, char **val_str)
 	return http_get_header(h, key, NULL, val_str);
 }
 
-char *http_request_header(char *header, char *field)
+char *http_set_header(char *header, char *name, int32_t type, void *value)
 {
+	size_t val_len = (type == HTTP_INT) ? 10 : strlen((char *) value);
 	size_t len = header ? strlen(header) : 0;
-	size_t new_len = len + strlen(field) + 3;
+	size_t new_len = len + strlen(name) + 2 + val_len + 3; //existing len, name len, ": ", val_len, "\r\n\0"
 
 	header = realloc(header, new_len);
-	snprintf(header + len, new_len, "%s\r\n", field);
+
+	if (type == HTTP_INT) {
+		int32_t *val_int = (int32_t *) value;
+		snprintf(header + len, new_len, "%s: %d\r\n", name, *val_int);
+
+	} else if (type == HTTP_STRING) {
+		snprintf(header + len, new_len, "%s: %s\r\n", name, (char *) value);
+	}
 
 	return header;
 }

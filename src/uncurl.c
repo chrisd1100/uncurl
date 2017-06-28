@@ -163,9 +163,14 @@ UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 
 /*** REQUEST ***/
 
-UNCURL_EXPORT void uncurl_set_header(struct uncurl_conn *ucc, char *field)
+UNCURL_EXPORT void uncurl_set_header_str(struct uncurl_conn *ucc, char *name, char *value)
 {
-	ucc->hreq = http_request_header(ucc->hreq, field);
+	ucc->hreq = http_set_header(ucc->hreq, name, HTTP_STRING, value);
+}
+
+UNCURL_EXPORT void uncurl_set_header_int(struct uncurl_conn *ucc, char *name, int32_t value)
+{
+	ucc->hreq = http_set_header(ucc->hreq, name, HTTP_INT, &value);
 }
 
 UNCURL_EXPORT void uncurl_clear_header(struct uncurl_conn *ucc)
@@ -174,12 +179,12 @@ UNCURL_EXPORT void uncurl_clear_header(struct uncurl_conn *ucc)
 	ucc->hreq = NULL;
 }
 
-UNCURL_EXPORT int32_t uncurl_send_header(struct uncurl_conn *ucc, char *method, char *path, uint32_t body_len)
+UNCURL_EXPORT int32_t uncurl_send_header(struct uncurl_conn *ucc, char *method, char *path)
 {
 	int32_t e;
 
 	//generate the HTTP request header
-	char *req = http_request(method, ucc->host, path, ucc->hreq, body_len);
+	char *req = http_request(method, ucc->host, path, ucc->hreq);
 
 	pthread_mutex_lock(&ucc->uc->mutex);
 
