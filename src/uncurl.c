@@ -193,7 +193,7 @@ UNCURL_EXPORT void uncurl_clear_header(struct uncurl_conn *ucc)
 	ucc->hreq = NULL;
 }
 
-UNCURL_EXPORT int32_t uncurl_send_header(struct uncurl_conn *ucc, char *method, char *path)
+UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *method, char *path)
 {
 	int32_t e;
 
@@ -202,7 +202,7 @@ UNCURL_EXPORT int32_t uncurl_send_header(struct uncurl_conn *ucc, char *method, 
 
 	pthread_mutex_lock(&ucc->uc->mutex);
 
-	//send the request header to the HTTP server
+	//write the request header to the HTTP server
 	e = ucc->write(ucc->ctx, req, (uint32_t) strlen(req));
 
 	pthread_mutex_unlock(&ucc->uc->mutex);
@@ -212,7 +212,7 @@ UNCURL_EXPORT int32_t uncurl_send_header(struct uncurl_conn *ucc, char *method, 
 	return e;
 }
 
-UNCURL_EXPORT int32_t uncurl_send_body(struct uncurl_conn *ucc, char *body, uint32_t body_len)
+UNCURL_EXPORT int32_t uncurl_write_body(struct uncurl_conn *ucc, char *body, uint32_t body_len)
 {
 	int32_t e;
 

@@ -32,8 +32,8 @@
 	typedef int32_t SOCKET;
 #endif
 
-#define NET_DEF_READ_TIMEOUT 5000
-#define NET_DEF_CONNECT_TIMEOUT 5000
+#define net_set_sockopt(s, level, opt_name, opt) \
+	setsockopt(s, level, opt_name, (const char *) &opt, sizeof(opt))
 
 struct net_context {
 	struct net_opts opts;
@@ -92,10 +92,22 @@ void net_close(struct net_context *nc)
 	free(nc);
 }
 
+static void net_set_options(SOCKET s, struct net_opts *opts)
+{
+	net_set_sockopt(s, SOL_SOCKET, SO_RCVBUF, opts->socket_read_buf);
+	net_set_sockopt(s, SOL_SOCKET, SO_SNDBUF, opts->socket_write_buf);
+	net_set_sockopt(s, SOL_SOCKET, SO_KEEPALIVE, opts->socket_keepalive);
+	net_set_sockopt(s, IPPROTO_TCP, TCP_NODELAY, opts->tcp_nodelay);
+}
+
 void net_default_opts(struct net_opts *opts)
 {
-	opts->read_timeout_ms = NET_DEF_READ_TIMEOUT;
-	opts->connect_timeout_ms = NET_DEF_CONNECT_TIMEOUT;
+	opts->read_timeout_ms = 5000;
+	opts->connect_timeout_ms = 5000;
+	opts->socket_read_buf = 64 * 1024;
+	opts->socket_write_buf = 64 * 1024;
+	opts->socket_keepalive = 1;
+	opts->tcp_nodelay = 1;
 }
 
 int32_t net_poll(struct net_context *nc, int32_t net_event, int32_t timeout_ms)
@@ -155,6 +167,9 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 
 	nc->s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (nc->s == INVALID_SOCKET) {r = UNCURL_NET_ERR_SOCKET; goto net_connect_failure;}
+
+	//set options
+	net_set_options(nc->s, &nc->opts);
 
 	//put socket in nonblocking mode, allows us to implement connection timeout
 	e = net_set_nonblocking(nc->s);

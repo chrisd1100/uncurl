@@ -13,6 +13,7 @@ struct net_opts {
 	int32_t connect_timeout_ms;
 	int32_t socket_read_buf;
 	int32_t socket_write_buf;
+	int32_t socket_keepalive;
 	int32_t tcp_nodelay;
 };
 

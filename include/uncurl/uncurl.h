@@ -28,8 +28,8 @@ extern "C" {
 UNCURL_EXPORT int32_t uncurl_init(struct uncurl **uc_in);
 UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc_in,
 	int32_t scheme, char *host, uint16_t port);
-UNCURL_EXPORT int32_t uncurl_send_header(struct uncurl_conn *ucc, char *method, char *path);
-UNCURL_EXPORT int32_t uncurl_send_body(struct uncurl_conn *ucc, char *body, uint32_t body_len);
+UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *method, char *path);
+UNCURL_EXPORT int32_t uncurl_write_body(struct uncurl_conn *ucc, char *body, uint32_t body_len);
 UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc);
 UNCURL_EXPORT int32_t uncurl_get_status_code(struct uncurl_conn *ucc, int32_t *status_code);
 UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body, uint32_t *body_len);
@@ -48,6 +48,19 @@ UNCURL_EXPORT int8_t uncurl_check_header(struct uncurl_conn *ucc, char *name, ch
 //XXX uncurl_read_body(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint32_t *bytes_read);
 //XXX uncurl_get_header_int(struct uncurl_conn *ucc, char *name, int32_t *value);
 //XXX uncurl_get_header_str(struct uncurl_conn *ucc, char *name, char **value);
+
+/*** NET OPTIONS ***/
+UNCURL_EXPORT int8_t uncurl_set_read_timeout(struct uncurl *uc, int32_t timeout_ms);
+UNCURL_EXPORT int8_t uncurl_set_connect_timeout(struct uncurl *uc, int32_t timeout_ms);
+UNCURL_EXPORT int8_t uncurl_set_read_buffer(struct uncurl *uc, int32_t buf_len);
+UNCURL_EXPORT int8_t uncurl_set_write_buffer(struct uncurl *uc, int32_t buf_len);
+UNCURL_EXPORT int8_t uncurl_set_keepalive(struct uncurl *uc, int32_t val);
+UNCURL_EXPORT int8_t uncurl_set_tcp_nodelay(struct uncurl *uc, int32_t val);
+
+/*** UNCURL OPTIONS ***/
+UNCURL_EXPORT int8_t uncurl_set_max_header(struct uncurl *uc, uint32_t buf_len);
+UNCURL_EXPORT int8_t uncurl_set_max_body(struct uncurl *uc, uint32_t buf_len);
+
 
 #ifdef __cplusplus
 }
