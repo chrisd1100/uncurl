@@ -20,6 +20,7 @@
 	#include <unistd.h>
 	#include <sys/socket.h>
 	#include <arpa/inet.h>
+	#include <netinet/tcp.h>
 	#include <poll.h>
 	#include <errno.h>
 	#include <netdb.h>
