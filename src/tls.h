@@ -11,10 +11,6 @@ struct net_context;
 struct tls_context;
 struct tls_state;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int32_t tlss_alloc(struct tls_state **tlss_in, const char **cacert, int32_t num_certs);
 void tlss_free(struct tls_state *tlss);
 
@@ -25,9 +21,5 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 
 int32_t tls_write(void *ctx, char *buf, uint32_t buf_size);
 int32_t tls_read(void *ctx, char *buf, uint32_t buf_size);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

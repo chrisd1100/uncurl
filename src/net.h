@@ -19,10 +19,6 @@ struct net_opts {
 
 struct net_context;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int32_t net_error();
 int32_t net_would_block();
 int32_t net_in_progress();
@@ -38,9 +34,5 @@ void net_get_opts(struct net_context *nc, struct net_opts *opts);
 
 int32_t net_write(void *ctx, char *buf, uint32_t buf_size);
 int32_t net_read(void *nc, char *buf, uint32_t buf_size);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

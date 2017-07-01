@@ -10,10 +10,6 @@ enum http_type {
 
 struct http_header;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 char *http_request(char *method, char *host, char *path, char *fields);
 char *http_lc(char *str);
 struct http_header *http_parse_header(char *header);
@@ -23,9 +19,5 @@ int32_t http_get_header_str(struct http_header *h, char *key, char **val_str);
 int32_t http_get_status_code(struct http_header *h, int32_t *status_code);
 char *http_set_header(char *header, char *name, int32_t type, void *value);
 int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *port, char **path);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
