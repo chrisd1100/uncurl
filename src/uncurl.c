@@ -9,6 +9,8 @@
 #include "http.h"
 #include "thread.h"
 
+#include "../cacert/cacert.h"
+
 #define LEN_IP4 16
 #define LEN_CHUNK_LEN 64
 #define LEN_HTTP_HEADER 1024
@@ -74,7 +76,7 @@ UNCURL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
 	net_default_opts(&uc->nopts);
 	tls_default_opts(&uc->topts);
 
-	e = tlss_alloc(&uc->tlss);
+	e = tlss_alloc(&uc->tlss, CACERT, sizeof(CACERT) / sizeof(const char *));
 	if (e == UNCURL_OK) return e;
 
 	uncurl_destroy(uc);

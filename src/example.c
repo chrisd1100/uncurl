@@ -76,7 +76,7 @@ int32_t main(int32_t argc, char **argv)
 	if (e == UNCURL_OK) {
 
 		//multiple requests can be made with the same uncurl handle
-		uncurl_get(uc, "https://www.google.com");
+		uncurl_get(uc, "https://s3.amazonaws.com/parseccloud/changelog.txt");
 
 		uncurl_destroy(uc);
 	}

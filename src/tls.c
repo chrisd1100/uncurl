@@ -16,8 +16,6 @@
 #include "uncurl/status.h"
 #include "net.h"
 
-#include "../cacert/cacert.h"
-
 #define TLS_DEF_VERIFY_DEPTH 4
 
 
@@ -27,15 +25,15 @@ struct tls_state {
 	SSL_CTX *ctx;
 };
 
-static int32_t tlss_load_root_certs(struct tls_state *tlss)
+static int32_t tlss_load_root_certs(struct tls_state *tlss, const char **cacert, int32_t num_certs)
 {
 	int32_t r = UNCURL_OK;
 
 	X509_STORE *store = SSL_CTX_get_cert_store(tlss->ctx);
 	if (!store) return UNCURL_TLS_ERR_CACERT;
 
-	for (int32_t x = 0; x < CACERT_LEN && r == UNCURL_OK; x++) {
-		BIO *bio = BIO_new_mem_buf(CACERT[x], -1);
+	for (int32_t x = 0; x < num_certs && r == UNCURL_OK; x++) {
+		BIO *bio = BIO_new_mem_buf(cacert[x], -1);
 		if (!bio) break;
 
 		X509 *cert = NULL;
@@ -62,7 +60,7 @@ void tlss_free(struct tls_state *tlss)
 	free(tlss);
 }
 
-int32_t tlss_alloc(struct tls_state **tlss_in)
+int32_t tlss_alloc(struct tls_state **tlss_in, const char **cacert, int32_t num_certs)
 {
 	int32_t e;
 	struct tls_state *tlss = *tlss_in = calloc(1, sizeof(struct tls_state));
@@ -75,7 +73,7 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 	SSL_CTX_set_verify_depth(tlss->ctx, TLS_DEF_VERIFY_DEPTH);
 
 	//the context stores the trusted root certs
-	e = tlss_load_root_certs(tlss);
+	e = tlss_load_root_certs(tlss, cacert, num_certs);
 	if (e == UNCURL_OK) return e;
 
 	tlss_free(tlss);

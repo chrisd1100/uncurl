@@ -15,7 +15,7 @@ struct tls_state;
 extern "C" {
 #endif
 
-int32_t tlss_alloc(struct tls_state **tlss_in);
+int32_t tlss_alloc(struct tls_state **tlss_in, const char **cacert, int32_t num_certs);
 void tlss_free(struct tls_state *tlss);
 
 void tls_default_opts(struct tls_opts *opts);
