@@ -26,18 +26,16 @@ int32_t tlss_load_cacert(struct tls_state *tlss, char **cacert, uint32_t num_cer
 	if (!store) return UNCURL_TLS_ERR_CACERT;
 
 	for (uint32_t x = 0; x < num_certs && r == UNCURL_OK; x++) {
-		BIO *bio = BIO_new_mem_buf(cacert[x], -1);
-		if (!bio) break;
-
 		X509 *cert = NULL;
-		if (PEM_read_bio_X509(bio, &cert, 0, NULL)) {
+		BIO *bio = BIO_new_mem_buf(cacert[x], -1);
+
+		if (bio && PEM_read_bio_X509(bio, &cert, 0, NULL)) {
 			X509_STORE_add_cert(store, cert);
 			X509_free(cert);
+			BIO_free(bio);
 		} else {
 			r = UNCURL_TLS_ERR_CACERT;
 		}
-
-		BIO_free(bio);
 	}
 
 	return r;
@@ -71,6 +69,7 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 	tlss->ctx = SSL_CTX_new(TLS_client_method());
 	if (!tlss->ctx) return UNCURL_TLS_ERR_CONTEXT;
 
+	//set peer certificate verification
 	SSL_CTX_set_verify(tlss->ctx, SSL_VERIFY_PEER, NULL);
 	SSL_CTX_set_verify_depth(tlss->ctx, TLS_DEF_VERIFY_DEPTH);
 
