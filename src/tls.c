@@ -3,15 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__WINDOWS__)
-	#pragma warning(disable: 4090)
-#endif
-
-#include "openssl/ssl.h"
-
-#if defined(__WINDOWS__)
-	#pragma warning(default: 4090)
-#endif
+#include "openssl/ssl3.h"
+#include "openssl/X509v3.h"
 
 #include "uncurl/status.h"
 #include "net.h"
@@ -117,7 +110,7 @@ void tls_default_opts(struct tls_opts *opts)
 }
 
 int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
-	struct net_context *nc, struct tls_opts *opts)
+	struct net_context *nc, char *host, struct tls_opts *opts)
 {
 	int32_t e;
 	int32_t r = UNCURL_ERR_DEFAULT;
@@ -132,6 +125,11 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 
 	tls->ssl = SSL_new(tlss->ctx);
 	if (!tls->ssl) {r = UNCURL_TLS_ERR_SSL; goto tls_connect_failure;}
+
+	//set hostname validation
+	X509_VERIFY_PARAM *param = SSL_get0_param(tls->ssl);
+	X509_VERIFY_PARAM_set_hostflags(param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+	X509_VERIFY_PARAM_set1_host(param, host, 0);
 
 	e = SSL_set_fd(tls->ssl, net_get_fd(tls->nc));
 	if (e != 1) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}

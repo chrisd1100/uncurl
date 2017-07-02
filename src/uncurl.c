@@ -141,7 +141,7 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc
 	if (scheme == UNCURL_HTTPS) {
 		pthread_mutex_lock(&uc->mutex);
 
-		e = tls_connect(&ucc->tls, uc->tlss, ucc->net, &uc->topts);
+		e = tls_connect(&ucc->tls, uc->tlss, ucc->net, ucc->host, &uc->topts);
 
 		pthread_mutex_unlock(&uc->mutex);
 
