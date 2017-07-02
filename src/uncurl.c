@@ -18,8 +18,8 @@
 #endif
 
 struct uncurl_opts {
-	uint32_t max_response_header;
-	uint32_t max_content_length;
+	uint32_t max_header;
+	uint32_t max_body;
 };
 
 struct uncurl {
@@ -91,6 +91,52 @@ UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl *uc, char **cacert, uint32
 UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl *uc, char *cacert_file)
 {
 	return tlss_load_cacert_file(uc->tlss, cacert_file);
+}
+
+
+/*** NET OPTIONS ***/
+
+UNCURL_EXPORT void uncurl_set_read_timeout(struct uncurl *uc, int32_t timeout_ms)
+{
+	uc->nopts.read_timeout = timeout_ms;
+}
+
+UNCURL_EXPORT void uncurl_set_connect_timeout(struct uncurl *uc, int32_t timeout_ms)
+{
+	uc->nopts.connect_timeout = timeout_ms;
+}
+
+UNCURL_EXPORT void uncurl_set_read_buf(struct uncurl *uc, int32_t buf_len)
+{
+	uc->nopts.read_buf = buf_len;
+}
+
+UNCURL_EXPORT void uncurl_set_write_buf(struct uncurl *uc, int32_t buf_len)
+{
+	uc->nopts.write_buf = buf_len;
+}
+
+UNCURL_EXPORT void uncurl_set_keepalive(struct uncurl *uc, int32_t val)
+{
+	uc->nopts.keepalive = val;
+}
+
+UNCURL_EXPORT void uncurl_set_tcp_nodelay(struct uncurl *uc, int32_t val)
+{
+	uc->nopts.tcp_nodelay = val;
+}
+
+
+/*** UNCURL OPTIONS ***/
+
+UNCURL_EXPORT void uncurl_set_max_header(struct uncurl *uc, uint32_t buf_len)
+{
+	uc->opts.max_header = buf_len;
+}
+
+UNCURL_EXPORT void uncurl_set_max_body(struct uncurl *uc, uint32_t buf_len)
+{
+	uc->opts.max_body = buf_len;
 }
 
 

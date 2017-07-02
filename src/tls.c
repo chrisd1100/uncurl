@@ -151,7 +151,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	//if not successful, see if we neeed to poll for more data
 	int32_t ssl_e = SSL_get_error(tls->ssl, e);
 	if (ne == net_would_block() || ssl_e == SSL_ERROR_WANT_READ) {
-		e = net_poll(tls->nc, NET_POLLIN, nopts.connect_timeout_ms);
+		e = net_poll(tls->nc, NET_POLLIN, nopts.connect_timeout);
 		if (e == UNCURL_OK) goto tls_connect_retry;
 		r = e;
 	}
@@ -193,7 +193,7 @@ int32_t tls_read(void *ctx, char *buf, uint32_t buf_size)
 
 	while (total < buf_size) {
 		if (SSL_has_pending(tls->ssl) == 0) {
-			e = net_poll(tls->nc, NET_POLLIN, nopts.read_timeout_ms);
+			e = net_poll(tls->nc, NET_POLLIN, nopts.read_timeout);
 			if (e != UNCURL_OK) return e;
 		}
 

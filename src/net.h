@@ -9,11 +9,11 @@ enum net_events {
 };
 
 struct net_opts {
-	int32_t read_timeout_ms;
-	int32_t connect_timeout_ms;
-	int32_t socket_read_buf;
-	int32_t socket_write_buf;
-	int32_t socket_keepalive;
+	int32_t read_timeout;
+	int32_t connect_timeout;
+	int32_t read_buf;
+	int32_t write_buf;
+	int32_t keepalive;
 	int32_t tcp_nodelay;
 };
 
