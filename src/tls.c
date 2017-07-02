@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "openssl/ssl3.h"
+#include "openssl/ssl.h"
 #include "openssl/X509v3.h"
 
 #include "uncurl/status.h"
