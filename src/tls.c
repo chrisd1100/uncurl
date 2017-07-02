@@ -25,14 +25,14 @@ struct tls_state {
 	SSL_CTX *ctx;
 };
 
-static int32_t tlss_load_root_certs(struct tls_state *tlss, const char **cacert, int32_t num_certs)
+int32_t tlss_load_cacert(struct tls_state *tlss, char **cacert, uint32_t num_certs)
 {
 	int32_t r = UNCURL_OK;
 
 	X509_STORE *store = SSL_CTX_get_cert_store(tlss->ctx);
 	if (!store) return UNCURL_TLS_ERR_CACERT;
 
-	for (int32_t x = 0; x < num_certs && r == UNCURL_OK; x++) {
+	for (uint32_t x = 0; x < num_certs && r == UNCURL_OK; x++) {
 		BIO *bio = BIO_new_mem_buf(cacert[x], -1);
 		if (!bio) break;
 
@@ -50,6 +50,16 @@ static int32_t tlss_load_root_certs(struct tls_state *tlss, const char **cacert,
 	return r;
 }
 
+int32_t tlss_load_cacert_file(struct tls_state *tlss, char *cacert_file)
+{
+	int32_t e;
+
+	e = SSL_CTX_load_verify_locations(tlss->ctx, cacert_file, NULL);
+	if (e != 1) return UNCURL_TLS_ERR_CACERT;
+
+	return UNCURL_OK;
+}
+
 void tlss_free(struct tls_state *tlss)
 {
 	if (!tlss) return;
@@ -60,9 +70,8 @@ void tlss_free(struct tls_state *tlss)
 	free(tlss);
 }
 
-int32_t tlss_alloc(struct tls_state **tlss_in, const char **cacert, int32_t num_certs)
+int32_t tlss_alloc(struct tls_state **tlss_in)
 {
-	int32_t e;
 	struct tls_state *tlss = *tlss_in = calloc(1, sizeof(struct tls_state));
 
 	//the SSL context can be reused for multiple connections
@@ -72,14 +81,7 @@ int32_t tlss_alloc(struct tls_state **tlss_in, const char **cacert, int32_t num_
 	SSL_CTX_set_verify(tlss->ctx, SSL_VERIFY_PEER, NULL);
 	SSL_CTX_set_verify_depth(tlss->ctx, TLS_DEF_VERIFY_DEPTH);
 
-	//the context stores the trusted root certs
-	e = tlss_load_root_certs(tlss, cacert, num_certs);
-	if (e == UNCURL_OK) return e;
-
-	tlss_free(tlss);
-	*tlss_in = NULL;
-
-	return e;
+	return UNCURL_OK;
 }
 
 

@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "../cacert/cacert.h"
+
 #if defined(__WINDOWS__)
 	#include <winsock2.h>
 #endif
@@ -72,6 +74,9 @@ int32_t main(int32_t argc, char **argv)
 
 	struct uncurl *uc = NULL;
 	e = uncurl_init(&uc);
+
+	uncurl_set_cacert(uc, (char **) CACERT, sizeof(CACERT) / sizeof(const char *));
+	//uncurl_set_cacert_file(uc, "../cacert/cacert.pem");
 
 	if (e == UNCURL_OK) {
 
