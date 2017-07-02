@@ -26,7 +26,6 @@ INCLUDES = \
 	-I../include/
 
 SYS_LIBS = \
-	-lpthread
 
 
 ifeq ($(UNAME), Linux)
