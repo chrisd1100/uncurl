@@ -6,6 +6,7 @@
 #include <ctype.h>
 
 #include "uncurl/status.h"
+#include "uncurl/const.h"
 
 #define REALLOC_INCR 20
 

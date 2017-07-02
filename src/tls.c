@@ -3,20 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__WINDOWS__)
-	#pragma warning(disable: 4090)
-#endif
-
 #include "openssl/ssl.h"
-
-#if defined(__WINDOWS__)
-	#pragma warning(default: 4090)
-#endif
+#include "openssl/X509v3.h"
 
 #include "uncurl/status.h"
 #include "net.h"
-
-#include "../cacert/cacert.h"
 
 #define TLS_DEF_VERIFY_DEPTH 4
 
@@ -27,29 +18,37 @@ struct tls_state {
 	SSL_CTX *ctx;
 };
 
-static int32_t tlss_load_root_certs(struct tls_state *tlss)
+int32_t tlss_load_cacert(struct tls_state *tlss, char **cacert, uint32_t num_certs)
 {
 	int32_t r = UNCURL_OK;
 
 	X509_STORE *store = SSL_CTX_get_cert_store(tlss->ctx);
 	if (!store) return UNCURL_TLS_ERR_CACERT;
 
-	for (int32_t x = 0; x < CACERT_LEN && r == UNCURL_OK; x++) {
-		BIO *bio = BIO_new_mem_buf(CACERT[x], -1);
-		if (!bio) break;
-
+	for (uint32_t x = 0; x < num_certs && r == UNCURL_OK; x++) {
 		X509 *cert = NULL;
-		if (PEM_read_bio_X509(bio, &cert, 0, NULL)) {
+		BIO *bio = BIO_new_mem_buf(cacert[x], -1);
+
+		if (bio && PEM_read_bio_X509(bio, &cert, 0, NULL)) {
 			X509_STORE_add_cert(store, cert);
 			X509_free(cert);
+			BIO_free(bio);
 		} else {
 			r = UNCURL_TLS_ERR_CACERT;
 		}
-
-		BIO_free(bio);
 	}
 
 	return r;
+}
+
+int32_t tlss_load_cacert_file(struct tls_state *tlss, char *cacert_file)
+{
+	int32_t e;
+
+	e = SSL_CTX_load_verify_locations(tlss->ctx, cacert_file, NULL);
+	if (e != 1) return UNCURL_TLS_ERR_CACERT;
+
+	return UNCURL_OK;
 }
 
 void tlss_free(struct tls_state *tlss)
@@ -64,24 +63,17 @@ void tlss_free(struct tls_state *tlss)
 
 int32_t tlss_alloc(struct tls_state **tlss_in)
 {
-	int32_t e;
 	struct tls_state *tlss = *tlss_in = calloc(1, sizeof(struct tls_state));
 
 	//the SSL context can be reused for multiple connections
 	tlss->ctx = SSL_CTX_new(TLS_client_method());
 	if (!tlss->ctx) return UNCURL_TLS_ERR_CONTEXT;
 
+	//set peer certificate verification
 	SSL_CTX_set_verify(tlss->ctx, SSL_VERIFY_PEER, NULL);
 	SSL_CTX_set_verify_depth(tlss->ctx, TLS_DEF_VERIFY_DEPTH);
 
-	//the context stores the trusted root certs
-	e = tlss_load_root_certs(tlss);
-	if (e == UNCURL_OK) return e;
-
-	tlss_free(tlss);
-	*tlss_in = NULL;
-
-	return e;
+	return UNCURL_OK;
 }
 
 
@@ -117,7 +109,7 @@ void tls_default_opts(struct tls_opts *opts)
 }
 
 int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
-	struct net_context *nc, struct tls_opts *opts)
+	struct net_context *nc, char *host, struct tls_opts *opts)
 {
 	int32_t e;
 	int32_t r = UNCURL_ERR_DEFAULT;
@@ -132,6 +124,11 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 
 	tls->ssl = SSL_new(tlss->ctx);
 	if (!tls->ssl) {r = UNCURL_TLS_ERR_SSL; goto tls_connect_failure;}
+
+	//set hostname validation
+	X509_VERIFY_PARAM *param = SSL_get0_param(tls->ssl);
+	X509_VERIFY_PARAM_set_hostflags(param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+	X509_VERIFY_PARAM_set1_host(param, host, 0);
 
 	e = SSL_set_fd(tls->ssl, net_get_fd(tls->nc));
 	if (e != 1) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
@@ -153,7 +150,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	//if not successful, see if we neeed to poll for more data
 	int32_t ssl_e = SSL_get_error(tls->ssl, e);
 	if (ne == net_would_block() || ssl_e == SSL_ERROR_WANT_READ) {
-		e = net_poll(tls->nc, NET_POLLIN, nopts.connect_timeout_ms);
+		e = net_poll(tls->nc, NET_POLLIN, nopts.connect_timeout);
 		if (e == UNCURL_OK) goto tls_connect_retry;
 		r = e;
 	}
@@ -195,7 +192,7 @@ int32_t tls_read(void *ctx, char *buf, uint32_t buf_size)
 
 	while (total < buf_size) {
 		if (SSL_has_pending(tls->ssl) == 0) {
-			e = net_poll(tls->nc, NET_POLLIN, nopts.read_timeout_ms);
+			e = net_poll(tls->nc, NET_POLLIN, nopts.read_timeout);
 			if (e != UNCURL_OK) return e;
 		}
 

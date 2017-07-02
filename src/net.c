@@ -20,6 +20,7 @@
 	#include <unistd.h>
 	#include <sys/socket.h>
 	#include <arpa/inet.h>
+	#include <netinet/tcp.h>
 	#include <poll.h>
 	#include <errno.h>
 	#include <netdb.h>
@@ -32,8 +33,8 @@
 	typedef int32_t SOCKET;
 #endif
 
-#define NET_DEF_READ_TIMEOUT 5000
-#define NET_DEF_CONNECT_TIMEOUT 5000
+#define net_set_sockopt(s, level, opt_name, opt) \
+	setsockopt(s, level, opt_name, (const char *) &opt, sizeof(opt))
 
 struct net_context {
 	struct net_opts opts;
@@ -92,10 +93,22 @@ void net_close(struct net_context *nc)
 	free(nc);
 }
 
+static void net_set_options(SOCKET s, struct net_opts *opts)
+{
+	net_set_sockopt(s, SOL_SOCKET, SO_RCVBUF, opts->read_buf);
+	net_set_sockopt(s, SOL_SOCKET, SO_SNDBUF, opts->write_buf);
+	net_set_sockopt(s, SOL_SOCKET, SO_KEEPALIVE, opts->keepalive);
+	net_set_sockopt(s, IPPROTO_TCP, TCP_NODELAY, opts->tcp_nodelay);
+}
+
 void net_default_opts(struct net_opts *opts)
 {
-	opts->read_timeout_ms = NET_DEF_READ_TIMEOUT;
-	opts->connect_timeout_ms = NET_DEF_CONNECT_TIMEOUT;
+	opts->read_timeout = 5000;
+	opts->connect_timeout = 5000;
+	opts->read_buf = 64 * 1024;
+	opts->write_buf = 64 * 1024;
+	opts->keepalive = 1;
+	opts->tcp_nodelay = 1;
 }
 
 int32_t net_poll(struct net_context *nc, int32_t net_event, int32_t timeout_ms)
@@ -156,6 +169,9 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 	nc->s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (nc->s == INVALID_SOCKET) {r = UNCURL_NET_ERR_SOCKET; goto net_connect_failure;}
 
+	//set options
+	net_set_options(nc->s, &nc->opts);
+
 	//put socket in nonblocking mode, allows us to implement connection timeout
 	e = net_set_nonblocking(nc->s);
 	if (e != 0) {r = UNCURL_NET_ERR_BLOCKMODE; goto net_connect_failure;}
@@ -173,7 +189,7 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 	if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; goto net_connect_failure;}
 
 	//wait for socket to be ready to write
-	e = net_poll(nc, NET_POLLOUT, nc->opts.connect_timeout_ms);
+	e = net_poll(nc, NET_POLLOUT, nc->opts.connect_timeout);
 	if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
 
 	//if the socket is clear of errors, we made a successful connection
@@ -216,7 +232,7 @@ int32_t net_read(void *ctx, char *buf, uint32_t buf_size)
 	uint32_t total = 0;
 
 	while (total < buf_size) {
-		e = net_poll(nc, NET_POLLIN, nc->opts.read_timeout_ms);
+		e = net_poll(nc, NET_POLLIN, nc->opts.read_timeout);
 		if (e != UNCURL_OK) return e;
 
 		n = recv(nc->s, buf + total, buf_size - total, 0);

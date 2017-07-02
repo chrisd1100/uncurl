@@ -9,18 +9,15 @@ enum net_events {
 };
 
 struct net_opts {
-	int32_t read_timeout_ms;
-	int32_t connect_timeout_ms;
-	int32_t socket_read_buf;
-	int32_t socket_write_buf;
+	int32_t read_timeout;
+	int32_t connect_timeout;
+	int32_t read_buf;
+	int32_t write_buf;
+	int32_t keepalive;
 	int32_t tcp_nodelay;
 };
 
 struct net_context;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 int32_t net_error();
 int32_t net_would_block();
@@ -37,9 +34,5 @@ void net_get_opts(struct net_context *nc, struct net_opts *opts);
 
 int32_t net_write(void *ctx, char *buf, uint32_t buf_size);
 int32_t net_read(void *nc, char *buf, uint32_t buf_size);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

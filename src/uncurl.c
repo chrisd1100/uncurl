@@ -7,24 +7,20 @@
 #include "net.h"
 #include "tls.h"
 #include "http.h"
-#include "thread.h"
 
 #define LEN_IP4 16
 #define LEN_CHUNK_LEN 64
-#define LEN_HTTP_HEADER 1024
 
 #if defined(__WINDOWS__)
 	#define strdup(a) _strdup(a)
 #endif
 
 struct uncurl_opts {
-	uint32_t max_response_header;
-	uint32_t max_content_length;
+	uint32_t max_header;
+	uint32_t max_body;
 };
 
 struct uncurl {
-	pthread_mutex_t mutex;
-
 	struct uncurl_opts opts;
 	struct net_opts nopts;
 	struct tls_opts topts;
@@ -58,9 +54,13 @@ UNCURL_EXPORT void uncurl_destroy(struct uncurl *uc)
 
 	tlss_free(uc->tlss);
 
-	pthread_mutex_destroy(&uc->mutex);
-
 	free(uc);
+}
+
+static void uncurl_default_opts(struct uncurl_opts *opts)
+{
+	opts->max_header = 1024;
+	opts->max_body = 128 * 1024 * 1024;
 }
 
 UNCURL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
@@ -69,8 +69,7 @@ UNCURL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
 
 	struct uncurl *uc = *uc_in = calloc(1, sizeof(struct uncurl));
 
-	pthread_mutex_init(&uc->mutex, NULL);
-
+	uncurl_default_opts(&uc->opts);
 	net_default_opts(&uc->nopts);
 	tls_default_opts(&uc->topts);
 
@@ -82,6 +81,42 @@ UNCURL_EXPORT int32_t uncurl_init(struct uncurl **uc_in)
 
 	return e;
 }
+
+UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl *uc, char **cacert, uint32_t num_certs)
+{
+	return tlss_load_cacert(uc->tlss, cacert, num_certs);
+}
+
+UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl *uc, char *cacert_file)
+{
+	return tlss_load_cacert_file(uc->tlss, cacert_file);
+}
+
+UNCURL_EXPORT void uncurl_set_option(struct uncurl *uc, int32_t opt, int32_t val)
+{
+	switch (opt) {
+		//uncurl options
+		case UNCURL_OPT_MAX_HEADER:
+			uc->opts.max_header = (uint32_t) val; break;
+		case UNCURL_OPT_MAX_BODY:
+			uc->opts.max_body = (uint32_t) val; break;
+
+		//net options
+		case UNCURL_NOPT_READ_TIMEOUT:
+			uc->nopts.read_timeout = val; break;
+		case UNCURL_NOPT_CONNECT_TIMEOUT:
+			uc->nopts.connect_timeout = val; break;
+		case UNCURL_NOPT_READ_BUF:
+			uc->nopts.read_buf = val; break;
+		case UNCURL_NOPT_WRITE_BUF:
+			uc->nopts.write_buf = val; break;
+		case UNCURL_NOPT_KEEPALIVE:
+			uc->nopts.keepalive = val; break;
+		case UNCURL_NOPT_TCP_NODELAY:
+			uc->nopts.tcp_nodelay = val; break;
+	}
+}
+
 
 
 /*** HEADERS ***/
@@ -129,12 +164,7 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc
 	ucc->write = net_write;
 
 	if (scheme == UNCURL_HTTPS) {
-		pthread_mutex_lock(&uc->mutex);
-
-		e = tls_connect(&ucc->tls, uc->tlss, ucc->net, &uc->topts);
-
-		pthread_mutex_unlock(&uc->mutex);
-
+		e = tls_connect(&ucc->tls, uc->tlss, ucc->net, ucc->host, &uc->topts);
 		if (e != UNCURL_OK) {r = e; goto uncurl_connect_end;}
 
 		//tls read/write callbacks
@@ -152,12 +182,8 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl *uc, struct uncurl_conn **ucc
 
 UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 {
-	pthread_mutex_lock(&ucc->uc->mutex);
-
 	tls_close(ucc->tls);
 	ucc->tls = NULL;
-
-	pthread_mutex_unlock(&ucc->uc->mutex);
 
 	net_close(ucc->net);
 	ucc->net = NULL;
@@ -193,34 +219,26 @@ UNCURL_EXPORT void uncurl_clear_header(struct uncurl_conn *ucc)
 	ucc->hreq = NULL;
 }
 
-UNCURL_EXPORT int32_t uncurl_send_header(struct uncurl_conn *ucc, char *method, char *path)
+UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *method, char *path)
 {
 	int32_t e;
 
 	//generate the HTTP request header
 	char *req = http_request(method, ucc->host, path, ucc->hreq);
 
-	pthread_mutex_lock(&ucc->uc->mutex);
-
-	//send the request header to the HTTP server
+	//write the request header to the HTTP server
 	e = ucc->write(ucc->ctx, req, (uint32_t) strlen(req));
-
-	pthread_mutex_unlock(&ucc->uc->mutex);
 
 	free(req);
 
 	return e;
 }
 
-UNCURL_EXPORT int32_t uncurl_send_body(struct uncurl_conn *ucc, char *body, uint32_t body_len)
+UNCURL_EXPORT int32_t uncurl_write_body(struct uncurl_conn *ucc, char *body, uint32_t body_len)
 {
 	int32_t e;
 
-	pthread_mutex_lock(&ucc->uc->mutex);
-
 	e = ucc->write(ucc->ctx, body, body_len);
-
-	pthread_mutex_unlock(&ucc->uc->mutex);
 
 	return e;
 }
@@ -230,21 +248,29 @@ UNCURL_EXPORT int32_t uncurl_send_body(struct uncurl_conn *ucc, char *body, uint
 
 static int32_t uncurl_read_header_(struct uncurl_conn *ucc, char **header)
 {
-	int32_t e = UNCURL_ERR_HEADER;
-	char *h = *header = calloc(LEN_HTTP_HEADER, 1);
+	int32_t r = UNCURL_ERR_DEFAULT;
 
-	for (int32_t x = 0; x < LEN_HTTP_HEADER - 1; x++) {
+	uint32_t max_header = ucc->uc->opts.max_header;
+	char *h = *header = calloc(max_header, 1);
+
+	uint32_t x = 0;
+	for (; x < max_header - 1; x++) {
+		int32_t e;
+
 		e = ucc->read(ucc->ctx, h + x, 1);
-		if (e != UNCURL_OK) break;
+		if (e != UNCURL_OK) {r = e; break;}
 
 		if (x > 2 && h[x - 3] == '\r' && h[x - 2] == '\n' && h[x - 1] == '\r' && h[x] == '\n')
 			return UNCURL_OK;
 	}
 
+	if (r == UNCURL_ERR_DEFAULT && x == max_header - 1) r = UNCURL_ERR_MAX_HEADER;
+	else r = UNCURL_ERR_BAD_HEADER;
+
 	free(h);
 	*header = NULL;
 
-	return e ? e : UNCURL_ERR_HEADER;
+	return r;
 }
 
 UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
@@ -255,13 +281,9 @@ UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
 	if (ucc->hres) http_free_header(ucc->hres);
 	ucc->hres = NULL;
 
-	pthread_mutex_lock(&ucc->uc->mutex);
-
 	//read the HTTP response header
 	char *header = NULL;
 	e = uncurl_read_header_(ucc, &header);
-
-	pthread_mutex_unlock(&ucc->uc->mutex);
 
 	if (e == UNCURL_OK) {
 		//parse the header into the http_header struct
@@ -277,14 +299,16 @@ UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
 
 static int32_t uncurl_read_chunk_len(struct uncurl_conn *ucc, uint32_t *len)
 {
-	int32_t e = UNCURL_ERR_CHUNK_LEN;
+	int32_t r = UNCURL_ERR_BAD_CHUNK;
 
 	char chunk_len[LEN_CHUNK_LEN];
 	memset(chunk_len, 0, LEN_CHUNK_LEN);
 
-	for (int32_t x = 0; x < LEN_CHUNK_LEN - 1; x++) {
+	for (uint32_t x = 0; x < LEN_CHUNK_LEN - 1; x++) {
+		int32_t e;
+
 		e = ucc->read(ucc->ctx, chunk_len + x, 1);
-		if (e != UNCURL_OK) break;
+		if (e != UNCURL_OK) {r = e; break;}
 
 		if (x > 0 && chunk_len[x - 1] == '\r' && chunk_len[x] == '\n') {
 			chunk_len[x - 1] = '\0';
@@ -295,7 +319,7 @@ static int32_t uncurl_read_chunk_len(struct uncurl_conn *ucc, uint32_t *len)
 
 	*len = 0;
 
-	return e ? e : UNCURL_ERR_CHUNK_LEN;
+	return r;
 }
 
 static int32_t uncurl_response_body_chunked(struct uncurl_conn *ucc, char **body, uint32_t *body_len)
@@ -309,6 +333,7 @@ static int32_t uncurl_response_body_chunked(struct uncurl_conn *ucc, char **body
 		//read the chunk size one byte at a time
 		e = uncurl_read_chunk_len(ucc, &chunk_len);
 		if (e != UNCURL_OK) return e;
+		if (offset + chunk_len > ucc->uc->opts.max_body) return UNCURL_ERR_MAX_BODY;
 
 		//make room for chunk and "\r\n" after chunk
 		*body = realloc(*body, offset + chunk_len + 2);
@@ -337,12 +362,7 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 	//look for chunked response
 	if (uncurl_check_header(ucc, "Transfer-Encoding", "chunked")) {
-		pthread_mutex_lock(&ucc->uc->mutex);
-
 		e = uncurl_response_body_chunked(ucc, body, body_len);
-
-		pthread_mutex_unlock(&ucc->uc->mutex);
-
 		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
 
 		r = UNCURL_OK;
@@ -354,14 +374,11 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
 
 		if (*body_len == 0) {r = UNCURL_ERR_NO_BODY; goto uncurl_response_body_end;}
+		if (*body_len > ucc->uc->opts.max_body) {r = UNCURL_ERR_MAX_BODY; goto uncurl_response_body_end;}
 
 		*body = calloc(*body_len + 1, 1);
 
-		pthread_mutex_lock(&ucc->uc->mutex);
-
 		e = ucc->read(ucc->ctx, *body, *body_len);
-
-		pthread_mutex_unlock(&ucc->uc->mutex);
 
 		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
 
