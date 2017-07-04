@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 struct tls_opts {
-	int8_t dummy;
+	int8_t verify_host;
 };
 
 struct net_context;

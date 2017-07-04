@@ -8,8 +8,6 @@
 #include "uncurl/status.h"
 #include "uncurl/const.h"
 
-#define REALLOC_INCR 20
-
 #if defined(__WINDOWS__)
 	#define strtok_r(a, b, c) strtok_s(a, b, c)
 	#define strdup(a) _strdup(a)
@@ -58,15 +56,13 @@ struct http_header *http_parse_header(char *header)
 
 	struct http_header *h = calloc(1, sizeof(struct http_header));
 
-	uint32_t len = 0;
-
 	//http header lines are delimited by "\r\n"
 	line = strtok_r(header, "\r\n", &ptr);
 
-	for (int32_t nlines = 0; line; nlines++) {
+	for (int8_t first = 1; line; first = 0) {
 
 		//first line is special and is stored seperately
-		if (nlines == 0) {
+		if (first) {
 			h->first_line = strdup(line);
 
 		//all lines following the first are in the "key: val" format
@@ -76,10 +72,7 @@ struct http_header *http_parse_header(char *header)
 			if (delim) {
 
 				//make room for key:val pairs
-				if (h->npairs == len) {
-					len += REALLOC_INCR;
-					h->pairs = realloc(h->pairs, sizeof(struct http_pair) * len);
-				}
+				h->pairs = realloc(h->pairs, sizeof(struct http_pair) * (h->npairs + 1));
 
 				//place a null character to separate the line
 				char save = delim[0];
@@ -118,7 +111,7 @@ void http_free_header(struct http_header *h)
 	free(h);
 }
 
-static int32_t http_get_header(struct http_header *h, char *key, int32_t *val_int, char **val_str)
+int32_t http_get_header(struct http_header *h, char *key, int32_t *val_int, char **val_str)
 {
 	int32_t r = UNCURL_ERR_DEFAULT;
 
@@ -180,16 +173,6 @@ int32_t http_get_status_code(struct http_header *h, int32_t *status_code)
 	return r;
 }
 
-int32_t http_get_header_int(struct http_header *h, char *key, int32_t *val_int)
-{
-	return http_get_header(h, key, val_int, NULL);
-}
-
-int32_t http_get_header_str(struct http_header *h, char *key, char **val_str)
-{
-	return http_get_header(h, key, NULL, val_str);
-}
-
 char *http_set_header(char *header, char *name, int32_t type, void *value)
 {
 	size_t val_len = (type == HTTP_INT) ? 10 : strlen((char *) value);
@@ -243,7 +226,7 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 	if (tok2) { //we have a port
 		*port = (uint16_t) atoi(tok2);
 	} else {
-		*port = (*scheme == UNCURL_HTTPS) ? 443 : 80;
+		*port = (*scheme == UNCURL_HTTPS) ? UNCURL_PORT_S : UNCURL_PORT;
 	}
 
 	//path

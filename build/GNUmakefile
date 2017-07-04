@@ -11,6 +11,9 @@ OBJS = \
 	../src/http.o \
 	../src/tls.o
 
+EXAMPLE_OBJ = \
+	../src/example.o
+
 DEFS = \
 	-D__UNIXY__ \
 	-D_GNU_SOURCE
@@ -68,7 +71,7 @@ all: clean clear
 	make -j$(CORES) lib
 
 clean:
-	rm -f $(OBJS)
+	rm -f $(OBJS) $(EXAMPLE_OBJ)
 	rm -f $(LIB_NAME).a
 	rm -f $(LIB_NAME).$(SHARED_SUFFIX)
 	rm -f $(BIN_NAME)
@@ -90,7 +93,7 @@ EXAMPLE_LD_COMMAND = \
 	-o $(BIN_NAME) \
 	-L./ \
 	-luncurl \
-	../src/example.o
+	$(EXAMPLE_OBJ)
 
 else
 LD_COMMAND = \
@@ -99,7 +102,7 @@ LD_COMMAND = \
 EXAMPLE_LD_COMMAND = \
 	$(CC) \
 	-o $(BIN_NAME) \
-	../src/example.o \
+	$(EXAMPLE_OBJ) \
 	$(LIB_NAME).a \
 	$(STATIC_LIBS) \
 	$(SYS_LIBS)
@@ -109,5 +112,5 @@ endif
 lib: $(OBJS)
 	$(LD_COMMAND)
 
-example: all ../src/example.o
+example: all $(EXAMPLE_OBJ)
 	$(EXAMPLE_LD_COMMAND)

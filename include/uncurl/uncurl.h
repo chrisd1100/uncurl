@@ -48,11 +48,12 @@ UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl *uc, char **cacert, uint32
 UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl *uc, char *cacert_file);
 UNCURL_EXPORT void uncurl_set_option(struct uncurl *uc, int32_t opt, int32_t val);
 
+UNCURL_EXPORT int32_t uncurl_get_header(struct uncurl_conn *ucc, char *key, int32_t *val_int, char **val_str);
+
+#define uncurl_get_header_int(ucc, key, val_int) uncurl_get_header(ucc, key, val_int, NULL)
+#define uncurl_get_header_str(ucc, key, val_str) uncurl_get_header(ucc, key, NULL, val_str)
+
 //XXX uncurl_read_body(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint32_t *bytes_read);
-//XXX uncurl_get_header_int(struct uncurl_conn *ucc, char *name, int32_t *value);
-//XXX uncurl_get_header_str(struct uncurl_conn *ucc, char *name, char **value);
-
-
 
 #ifdef __cplusplus
 }
