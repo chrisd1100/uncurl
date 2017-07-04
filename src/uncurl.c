@@ -114,22 +114,11 @@ UNCURL_EXPORT void uncurl_set_option(struct uncurl *uc, int32_t opt, int32_t val
 			uc->nopts.keepalive = val; break;
 		case UNCURL_NOPT_TCP_NODELAY:
 			uc->nopts.tcp_nodelay = val; break;
+
+		//tls options
+		case UNCURL_TOPT_VERIFY_HOST:
+			uc->topts.verify_host = val; break;
 	}
-}
-
-
-
-/*** HEADERS ***/
-
-UNCURL_EXPORT int8_t uncurl_check_header(struct uncurl_conn *ucc, char *name, char *subval)
-{
-	int32_t e;
-	char *val = NULL;
-
-	e = http_get_header_str(ucc->hres, name, &val);
-	if (e == UNCURL_OK && strstr(http_lc(val), subval)) return 1;
-
-	return 0;
 }
 
 
@@ -370,7 +359,7 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 	//fall through to using Content-Length
 	if (r != UNCURL_OK) {
-		e = http_get_header_int(ucc->hres, "Content-Length", (int32_t *) body_len);
+		e = uncurl_get_header_int(ucc, "Content-Length", (int32_t *) body_len);
 		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
 
 		if (*body_len == 0) {r = UNCURL_ERR_NO_BODY; goto uncurl_response_body_end;}
@@ -404,11 +393,27 @@ UNCURL_EXPORT int32_t uncurl_get_status_code(struct uncurl_conn *ucc, int32_t *s
 	return http_get_status_code(ucc->hres, status_code);
 }
 
+UNCURL_EXPORT int32_t uncurl_get_header(struct uncurl_conn *ucc, char *key, int32_t *val_int, char **val_str)
+{
+	return http_get_header(ucc->hres, key, val_int, val_str);
+}
+
 UNCURL_EXPORT int32_t uncurl_parse_url(char *url, struct uncurl_info *uci)
 {
 	memset(uci, 0, sizeof(struct uncurl_info));
 
 	return http_parse_url(url, &uci->scheme, &uci->host, &uci->port, &uci->path);
+}
+
+UNCURL_EXPORT int8_t uncurl_check_header(struct uncurl_conn *ucc, char *name, char *subval)
+{
+	int32_t e;
+	char *val = NULL;
+
+	e = uncurl_get_header_str(ucc, name, &val);
+	if (e == UNCURL_OK && strstr(http_lc(val), subval)) return 1;
+
+	return 0;
 }
 
 UNCURL_EXPORT void uncurl_free_info(struct uncurl_info *uci)

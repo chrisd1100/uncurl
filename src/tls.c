@@ -105,7 +105,7 @@ void tls_close(struct tls_context *tls)
 
 void tls_default_opts(struct tls_opts *opts)
 {
-	opts;
+	opts->verify_host = 1;
 }
 
 int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
@@ -126,9 +126,11 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	if (!tls->ssl) {r = UNCURL_TLS_ERR_SSL; goto tls_connect_failure;}
 
 	//set hostname validation
-	X509_VERIFY_PARAM *param = SSL_get0_param(tls->ssl);
-	X509_VERIFY_PARAM_set_hostflags(param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-	X509_VERIFY_PARAM_set1_host(param, host, 0);
+	if (opts->verify_host) {
+		X509_VERIFY_PARAM *param = SSL_get0_param(tls->ssl);
+		X509_VERIFY_PARAM_set_hostflags(param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+		X509_VERIFY_PARAM_set1_host(param, host, 0);
+	}
 
 	e = SSL_set_fd(tls->ssl, net_get_fd(tls->nc));
 	if (e != 1) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}

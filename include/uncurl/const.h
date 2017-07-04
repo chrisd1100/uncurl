@@ -1,6 +1,9 @@
 #ifndef __CONST_H
 #define __CONST_H
 
+#define UNCURL_PORT 80
+#define UNCURL_PORT_S 443
+
 enum uncurl_scheme {
 	UNCURL_NONE = 0,
 	UNCURL_HTTP = 1,
@@ -17,6 +20,8 @@ enum uncurl_option {
 	UNCURL_NOPT_WRITE_BUF = 103,
 	UNCURL_NOPT_KEEPALIVE = 104,
 	UNCURL_NOPT_TCP_NODELAY = 105,
+
+	UNCURL_TOPT_VERIFY_HOST = 200,
 };
 
 #endif
