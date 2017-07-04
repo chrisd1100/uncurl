@@ -114,6 +114,10 @@ UNCURL_EXPORT void uncurl_set_option(struct uncurl *uc, int32_t opt, int32_t val
 			uc->nopts.keepalive = val; break;
 		case UNCURL_NOPT_TCP_NODELAY:
 			uc->nopts.tcp_nodelay = val; break;
+
+		//tls options
+		case UNCURL_TOPT_VERIFY_HOST:
+			uc->topts.verify_host = val; break;
 	}
 }
 
