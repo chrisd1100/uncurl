@@ -44,7 +44,7 @@ struct uncurl_conn {
 };
 
 
-/*** INITIALIZATION ***/
+/*** TLS CONTEXT ***/
 
 UNCURL_EXPORT void uncurl_free_tls_ctx(struct uncurl_tls_ctx *uc_tls)
 {
@@ -53,12 +53,6 @@ UNCURL_EXPORT void uncurl_free_tls_ctx(struct uncurl_tls_ctx *uc_tls)
 	tlss_free(uc_tls->tlss);
 
 	free(uc_tls);
-}
-
-static void uncurl_default_opts(struct uncurl_opts *opts)
-{
-	opts->max_header = 1024;
-	opts->max_body = 128 * 1024 * 1024;
 }
 
 UNCURL_EXPORT int32_t uncurl_new_tls_ctx(struct uncurl_tls_ctx **uc_tls_in)
@@ -86,46 +80,24 @@ UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl_tls_ctx *uc_tls, char
 	return tlss_load_cacert_file(uc_tls->tlss, cacert_file);
 }
 
-UNCURL_EXPORT void uncurl_set_option(struct uncurl_conn *ucc, int32_t opt, int32_t val)
-{
-	switch (opt) {
-		//uncurl options
-		case UNCURL_OPT_MAX_HEADER:
-			ucc->opts.max_header = (uint32_t) val; break;
-		case UNCURL_OPT_MAX_BODY:
-			ucc->opts.max_body = (uint32_t) val; break;
-
-		//net options
-		case UNCURL_NOPT_READ_TIMEOUT:
-			ucc->nopts.read_timeout = val; break;
-		case UNCURL_NOPT_CONNECT_TIMEOUT:
-			ucc->nopts.connect_timeout = val; break;
-		case UNCURL_NOPT_READ_BUF:
-			ucc->nopts.read_buf = val; break;
-		case UNCURL_NOPT_WRITE_BUF:
-			ucc->nopts.write_buf = val; break;
-		case UNCURL_NOPT_KEEPALIVE:
-			ucc->nopts.keepalive = val; break;
-		case UNCURL_NOPT_TCP_NODELAY:
-			ucc->nopts.tcp_nodelay = val; break;
-
-		//tls options
-		case UNCURL_TOPT_VERIFY_HOST:
-			ucc->topts.verify_host = val; break;
-	}
-}
-
 
 /*** CONNECTION ***/
 
-UNCURL_EXPORT void uncurl_new_conn(struct uncurl_conn **ucc_in)
+static void uncurl_default_opts(struct uncurl_opts *opts)
 {
-	//create uncurl_conn and attach uncurl to it
-	struct uncurl_conn *ucc = *ucc_in = calloc(1, sizeof(struct uncurl_conn));
+	opts->max_header = 1024;
+	opts->max_body = 128 * 1024 * 1024;
+}
+
+UNCURL_EXPORT struct uncurl_conn *uncurl_new_conn()
+{
+	struct uncurl_conn *ucc = calloc(1, sizeof(struct uncurl_conn));
 
 	uncurl_default_opts(&ucc->opts);
 	net_default_opts(&ucc->nopts);
 	tls_default_opts(&ucc->topts);
+
+	return ucc;
 }
 
 UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncurl_conn *ucc,
@@ -189,6 +161,35 @@ UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 	free(ucc);
 }
 
+UNCURL_EXPORT void uncurl_set_option(struct uncurl_conn *ucc, int32_t opt, int32_t val)
+{
+	switch (opt) {
+		//uncurl options
+		case UNCURL_OPT_MAX_HEADER:
+			ucc->opts.max_header = (uint32_t) val; break;
+		case UNCURL_OPT_MAX_BODY:
+			ucc->opts.max_body = (uint32_t) val; break;
+
+		//net options
+		case UNCURL_NOPT_READ_TIMEOUT:
+			ucc->nopts.read_timeout = val; break;
+		case UNCURL_NOPT_CONNECT_TIMEOUT:
+			ucc->nopts.connect_timeout = val; break;
+		case UNCURL_NOPT_READ_BUF:
+			ucc->nopts.read_buf = val; break;
+		case UNCURL_NOPT_WRITE_BUF:
+			ucc->nopts.write_buf = val; break;
+		case UNCURL_NOPT_KEEPALIVE:
+			ucc->nopts.keepalive = val; break;
+		case UNCURL_NOPT_TCP_NODELAY:
+			ucc->nopts.tcp_nodelay = val; break;
+
+		//tls options
+		case UNCURL_TOPT_VERIFY_HOST:
+			ucc->topts.verify_host = val; break;
+	}
+}
+
 
 /*** REQUEST ***/
 
@@ -202,7 +203,7 @@ UNCURL_EXPORT void uncurl_set_header_int(struct uncurl_conn *ucc, char *name, in
 	ucc->hreq = http_set_header(ucc->hreq, name, HTTP_INT, &value);
 }
 
-UNCURL_EXPORT void uncurl_clear_header(struct uncurl_conn *ucc)
+UNCURL_EXPORT void uncurl_free_header(struct uncurl_conn *ucc)
 {
 	free(ucc->hreq);
 	ucc->hreq = NULL;
@@ -233,7 +234,7 @@ UNCURL_EXPORT int32_t uncurl_write_body(struct uncurl_conn *ucc, char *body, uin
 }
 
 
-/*** READING HEADER ***/
+/*** RESPONSE ***/
 
 static int32_t uncurl_read_header_(struct uncurl_conn *ucc, char **header)
 {
@@ -282,9 +283,6 @@ UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
 
 	return e;
 }
-
-
-/*** READING BODY ***/
 
 static int32_t uncurl_read_chunk_len(struct uncurl_conn *ucc, uint32_t *len)
 {

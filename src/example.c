@@ -23,7 +23,7 @@ int32_t uncurl_get(struct uncurl_tls_ctx *uc_tls, char *url)
 
 	if (e == UNCURL_OK) {
 		//create connection object
-		uncurl_new_conn(&ucc);
+		ucc = uncurl_new_conn();
 
 		//set options here
 		uncurl_set_option(ucc, UNCURL_NOPT_CONNECT_TIMEOUT, 10000);
