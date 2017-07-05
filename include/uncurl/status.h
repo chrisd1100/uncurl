@@ -1,5 +1,5 @@
-#ifndef __STATUS_H
-#define __STATUS_H
+#ifndef __UNCURL_STATUS_H
+#define __UNCURL_STATUS_H
 
 enum uncurl_status {
 	UNCURL_OK = 0,

@@ -1,5 +1,5 @@
-#ifndef __CONST_H
-#define __CONST_H
+#ifndef __UNCURL_CONST_H
+#define __UNCURL_CONST_H
 
 #define UNCURL_PORT 80
 #define UNCURL_PORT_S 443

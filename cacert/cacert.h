@@ -1,6 +1,3 @@
-#ifndef __CACERT_H
-#define __CACERT_H
-
 const char *CACERT[] = {
 	"GlobalSign Root CA\n"
 	"==================\n"
@@ -3940,5 +3937,3 @@ const char *CACERT[] = {
 	"\n",
 
 };
-
-#endif
