@@ -10,7 +10,7 @@
 	#include <winsock2.h>
 #endif
 
-int32_t uncurl_get(struct uncurl *uc, char *url)
+int32_t uncurl_get(struct uncurl_tls_ctx *uc_tls, char *url)
 {
 	int32_t r = UNCURL_ERR_DEFAULT;
 	int32_t e;
@@ -22,13 +22,18 @@ int32_t uncurl_get(struct uncurl *uc, char *url)
 	e = uncurl_parse_url(url, &uci);
 
 	if (e == UNCURL_OK) {
+		//create connection object
+		ucc = uncurl_new_conn();
+
+		//set options here
+		uncurl_set_option(ucc, UNCURL_NOPT_CONNECT_TIMEOUT, 10000);
+
 		//make the socket/TLS connection
-		e = uncurl_connect(uc, &ucc, uci.scheme, uci.host, uci.port);
+		e = uncurl_connect(uc_tls, ucc, uci.scheme, uci.host, uci.port);
 		if (e != UNCURL_OK) {r = e; goto uncurl_get_end;}
 
 		//set request headers
 		uncurl_set_header_str(ucc, "User-Agent", "uncurl/0.0");
-		uncurl_set_header_str(ucc, "Referer", "https://www.google.com/");
 
 		//write the request header and body
 		e = uncurl_write_header(ucc, "GET", uci.path);
@@ -49,7 +54,7 @@ int32_t uncurl_get(struct uncurl *uc, char *url)
 		e = uncurl_read_body_all(ucc, &response, &response_len);
 		if (e != UNCURL_OK) {r = e; goto uncurl_get_end;}
 
-		fprintf(stderr, "%s : %d\n", url, status_code);
+		fprintf(stderr, "%s : %d\n\n", url, status_code);
 		fprintf(stdout, "%s\n", response);
 		free(response);
 
@@ -82,21 +87,18 @@ int32_t main(int32_t argc, char **argv)
 	#endif
 
 	//the master context
-	struct uncurl *uc = NULL;
-	e = uncurl_init(&uc);
+	struct uncurl_tls_ctx *uc_tls = NULL;
+	e = uncurl_new_tls_ctx(&uc_tls);
 
 	//if making HTTPS requests, set root certs from buffer or file
-	uncurl_set_cacert(uc, (char **) CACERT, sizeof(CACERT) / sizeof(const char *));
-	//uncurl_set_cacert_file(uc, "../cacert/cacert.pem");
-
-	//set options here
-	uncurl_set_option(uc, UNCURL_NOPT_CONNECT_TIMEOUT, 10000);
+	uncurl_set_cacert(uc_tls, (char **) CACERT, sizeof(CACERT) / sizeof(const char *));
+	//uncurl_set_cacert_file(uc_tls, "../cacert/cacert.pem");
 
 	if (e == UNCURL_OK) {
-		e = uncurl_get(uc, argv[1]);
+		e = uncurl_get(uc_tls, argv[1]);
 		if (e != UNCURL_OK) printf("uncurl_get error: %d\n", e);
 
-		uncurl_destroy(uc);
+		uncurl_free_tls_ctx(uc_tls);
 	}
 
 
