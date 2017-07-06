@@ -238,7 +238,7 @@ UNCURL_EXPORT int32_t uncurl_write_body(struct uncurl_conn *ucc, char *body, uin
 
 static int32_t uncurl_read_header_(struct uncurl_conn *ucc, char **header)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_ERR_MAX_HEADER;
 
 	uint32_t max_header = ucc->opts.max_header;
 	char *h = *header = calloc(max_header, 1);
@@ -253,9 +253,6 @@ static int32_t uncurl_read_header_(struct uncurl_conn *ucc, char **header)
 		if (x > 2 && h[x - 3] == '\r' && h[x - 2] == '\n' && h[x - 1] == '\r' && h[x] == '\n')
 			return UNCURL_OK;
 	}
-
-	if (r == UNCURL_ERR_DEFAULT && x == max_header - 1) r = UNCURL_ERR_MAX_HEADER;
-	else r = UNCURL_ERR_BAD_HEADER;
 
 	free(h);
 	*header = NULL;
@@ -286,7 +283,7 @@ UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
 
 static int32_t uncurl_read_chunk_len(struct uncurl_conn *ucc, uint32_t *len)
 {
-	int32_t r = UNCURL_ERR_BAD_CHUNK;
+	int32_t r = UNCURL_ERR_MAX_CHUNK;
 
 	char chunk_len[LEN_CHUNK_LEN];
 	memset(chunk_len, 0, LEN_CHUNK_LEN);
