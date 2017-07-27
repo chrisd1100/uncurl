@@ -214,9 +214,19 @@ int32_t tls_write(void *ctx, char *buf, uint32_t buf_size)
 	struct tls_context *tls = (struct tls_context *) ctx;
 
 	int32_t n;
+	uint32_t total = 0;
 
-	n = SSL_write(tls->ssl, buf, buf_size);
-	if (n != (int32_t) buf_size) return UNCURL_TLS_ERR_WRITE;
+	while (total < buf_size) {
+		n = SSL_write(tls->ssl, buf + total, buf_size - total);
+		if (n <= 0) {
+			int32_t ssl_e = SSL_get_error(tls->ssl, n);
+			if (ssl_e == SSL_ERROR_WANT_READ || ssl_e == SSL_ERROR_WANT_WRITE) continue;
+			if (ssl_e == SSL_ERROR_ZERO_RETURN) return UNCURL_TLS_ERR_CLOSED;
+			return UNCURL_TLS_ERR_WRITE;
+		}
+
+		total += n;
+	}
 
 	return UNCURL_OK;
 }
@@ -242,7 +252,7 @@ int32_t tls_read(void *ctx, char *buf, uint32_t buf_size)
 		n = SSL_read(tls->ssl, buf + total, buf_size - total);
 		if (n <= 0) {
 			int32_t ssl_e = SSL_get_error(tls->ssl, n);
-			if (ssl_e == SSL_ERROR_WANT_READ) continue;
+			if (ssl_e == SSL_ERROR_WANT_READ || ssl_e == SSL_ERROR_WANT_WRITE) continue;
 			if (ssl_e == SSL_ERROR_ZERO_RETURN) return UNCURL_TLS_ERR_CLOSED;
 			return UNCURL_TLS_ERR_READ;
 		}
