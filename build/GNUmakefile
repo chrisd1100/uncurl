@@ -9,7 +9,8 @@ OBJS = \
 	../src/uncurl.o \
 	../src/net.o \
 	../src/http.o \
-	../src/tls.o
+	../src/tls.o \
+	../src/ws.o
 
 EXAMPLE_OBJ = \
 	../example/example-ws.o

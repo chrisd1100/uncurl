@@ -1,6 +1,7 @@
 #include "ws.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #if defined(__WINDOWS__)
@@ -23,7 +24,7 @@ uint32_t ws_rand(uint32_t *seed)
 static char *ws_base64(char *buf, int32_t len)
 {
 	int32_t p = 0;
-	char rem, shift, b;
+	int8_t rem, shift, b;
 
 	char *out = calloc(((len + 2) / 3 * 4) + 1, 1);
 

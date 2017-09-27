@@ -1,4 +1,5 @@
 src/*.o
+example/*.o
 build/*.obj
 build/example.exe
 build/example
