@@ -56,6 +56,13 @@ UNCURL_EXPORT int32_t uncurl_get_header(struct uncurl_conn *ucc, char *key, int3
 #define uncurl_get_header_int(ucc, key, val_int) uncurl_get_header(ucc, key, val_int, NULL)
 #define uncurl_get_header_str(ucc, key, val_str) uncurl_get_header(ucc, key, NULL, val_str)
 
+/*** WEBSOCKETS ***/
+UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path);
+UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode);
+UNCURL_EXPORT int32_t uncurl_ws_poll(struct uncurl_conn *ucc, int32_t timeout_ms);
+UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode);
+UNCURL_EXPORT int32_t uncurl_ws_close(struct uncurl_conn *ucc);
+
 /*** HELPERS ***/
 UNCURL_EXPORT int32_t uncurl_parse_url(char *url, struct uncurl_info *uci);
 UNCURL_EXPORT void uncurl_free_info(struct uncurl_info *uci);

@@ -7,11 +7,13 @@
 #include "net.h"
 #include "tls.h"
 #include "http.h"
+#include "ws.h"
 
 #define LEN_IP4 16
 #define LEN_CHUNK_LEN 64
 
 #if defined(__WINDOWS__)
+	#include <winsock2.h>
 	#define strdup(a) _strdup(a)
 #endif
 
@@ -41,6 +43,8 @@ struct uncurl_conn {
 
 	char *host;
 	uint16_t port;
+
+	uint32_t seed;
 };
 
 
@@ -97,6 +101,8 @@ UNCURL_EXPORT struct uncurl_conn *uncurl_new_conn()
 	net_default_opts(&ucc->nopts);
 	tls_default_opts(&ucc->topts);
 
+	ucc->seed = ws_rand(&ucc->seed);
+
 	return ucc;
 }
 
@@ -124,7 +130,7 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncur
 	ucc->read = net_read;
 	ucc->write = net_write;
 
-	if (scheme == UNCURL_HTTPS) {
+	if (scheme == UNCURL_HTTPS || scheme == UNCURL_WSS) {
 		e = tls_connect(&ucc->tls, uc_tls->tlss, ucc->net, ucc->host, &ucc->topts);
 		if (e != UNCURL_OK) {r = e; goto uncurl_connect_end;}
 
@@ -377,6 +383,110 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 	}
 
 	return r;
+}
+
+
+/*** WEBSOCKETS ***/
+
+UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path)
+{
+	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t e;
+
+	char *sec_key = ws_create_key(&ucc->seed);
+
+	//obligatory websocket headers
+	uncurl_set_header_str(ucc, "Upgrade", "websocket");
+	uncurl_set_header_str(ucc, "Connection", "Upgrade");
+	uncurl_set_header_str(ucc, "Sec-WebSocket-Key", sec_key);
+	uncurl_set_header_str(ucc, "Sec-WebSocket-Version", "13");
+
+	//write the header
+	e = uncurl_write_header(ucc, "GET", path);
+	if (e != UNCURL_OK) {r = e; goto ws_connect_end;}
+
+	//we expect a 101 response code from the server
+	e = uncurl_read_header(ucc);
+	if (e != UNCURL_OK) {r = e; goto ws_connect_end;}
+
+	//make sure we have a 101 from the server
+	int32_t status_code = 0;
+	e = uncurl_get_status_code(ucc, &status_code);
+	if (e != UNCURL_OK) {r = e; goto ws_connect_end;}
+	if (status_code != 101) {r = UNCURL_WS_ERR_REPLY; goto ws_connect_end;}
+
+	//body needs to be read as there is an extra \r\n in the response
+	uint32_t body_len = 0;
+	char *body = NULL;
+	e = uncurl_read_body_all(ucc, &body, &body_len);
+	free(body);
+	if (e != UNCURL_OK) {r = e; goto ws_connect_end;}
+
+	r = UNCURL_OK;
+
+	ws_connect_end:
+
+	free(sec_key);
+
+	return r;
+}
+
+UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode)
+{
+	struct ws_header h;
+	memset(&h, 0, sizeof(struct ws_header));
+
+	h.fin = 1;
+	h.mask = 1;
+	h.opcode = (uint8_t) opcode;
+	h.payload_len = buf_len;
+
+	//serialize the payload into a websocket conformant message
+	uint64_t size = 0;
+	char *netbuf = ws_serialize(&h, &ucc->seed, buf, &size);
+
+	//write full network buffer
+	int32_t e = ucc->write(ucc->ctx, netbuf, (uint32_t) size);
+
+	free(netbuf);
+
+	return e;
+}
+
+UNCURL_EXPORT int32_t uncurl_ws_poll(struct uncurl_conn *ucc, int32_t timeout_ms)
+{
+	return net_poll(ucc->net, NET_POLLIN, timeout_ms);
+}
+
+UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode)
+{
+	int32_t e;
+	char header_buf[WS_HEADER_SIZE];
+	struct ws_header h;
+
+	//first two bytes contain most control information
+	e = ucc->read(ucc->ctx, header_buf, 2);
+	if (e != UNCURL_OK) return e;
+	ws_parse_header0(&h, header_buf);
+	*opcode = h.opcode;
+
+	//read the payload size and mask
+	e = ucc->read(ucc->ctx, header_buf, h.addtl_bytes);
+	if (e != UNCURL_OK) return e;
+	ws_parse_header1(&h, header_buf);
+
+	//check bounds
+	if (h.payload_len > ucc->opts.max_body) return UNCURL_ERR_MAX_BODY;
+	if (h.payload_len > buf_len) return UNCURL_ERR_BUFFER;
+
+	return ucc->read(ucc->ctx, buf, (uint32_t) h.payload_len);
+}
+
+UNCURL_EXPORT int32_t uncurl_ws_close(struct uncurl_conn *ucc)
+{
+	uint16_t reason16 = htons(1000);
+
+	return uncurl_ws_write(ucc, (char *) &reason16, 2, UNCURL_WSOP_CLOSE);
 }
 
 

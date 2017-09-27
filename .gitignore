@@ -1,7 +1,8 @@
 src/*.o
+example/*.o
 build/*.obj
-build/uncurl.exe
-build/uncurl
+build/example.exe
+build/example
 build/libuncurl.a
 build/libuncurl.dylib
 build/libuncurl.so

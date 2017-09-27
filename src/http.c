@@ -213,6 +213,10 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 		*scheme = UNCURL_HTTPS;
 	} else if (!strcmp(tok, "http")) {
 		*scheme = UNCURL_HTTP;
+	} else if (!strcmp(tok, "ws")) {
+		*scheme = UNCURL_WS;
+	} else if (!strcmp(tok, "wss")) {
+		*scheme = UNCURL_WSS;
 	} else {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
 
 	//host + port

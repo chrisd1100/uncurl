@@ -3,16 +3,17 @@ UNAME = $(shell uname -s)
 ARCH = $(shell uname -m)
 
 LIB_NAME = libuncurl
-BIN_NAME = uncurl
+BIN_NAME = example
 
 OBJS = \
 	../src/uncurl.o \
 	../src/net.o \
 	../src/http.o \
-	../src/tls.o
+	../src/tls.o \
+	../src/ws.o
 
 EXAMPLE_OBJ = \
-	../src/example.o
+	../example/example-ws.o
 
 DEFS = \
 	-D__UNIXY__ \
