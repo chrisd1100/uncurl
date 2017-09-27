@@ -6,13 +6,14 @@ PLATFORM = windows32
 !ENDIF
 
 LIB_NAME = libuncurl
-BIN_NAME = uncurl
+BIN_NAME = example
 
 OBJS = \
 	../src/uncurl.obj \
 	../src/net.obj \
 	../src/http.obj \
-	../src/tls.obj
+	../src/tls.obj \
+	../src/ws.obj
 
 SYS_LIBS = \
 	libvcruntime.lib \
@@ -48,6 +49,7 @@ FLAGS = \
 	/O2 \
 	/MT \
 	/MP \
+	/GS- \
 	/nologo
 
 CFLAGS = $(INCLUDES) $(DEFS) $(FLAGS)
@@ -85,11 +87,11 @@ EXAMPLE_LIBS = \
 	$(SYS_LIBS)
 !endif
 
-example: lib ../src/example.obj
+example: lib ../example/example-ws.obj
 	link \
 	/out:$(BIN_NAME).exe \
 	$(LD_FLAGS) \
-	example.obj \
+	example-ws.obj \
 	$(LIB_NAME).lib \
 	$(EXAMPLE_LIBS)
 
