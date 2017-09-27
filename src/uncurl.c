@@ -390,45 +390,37 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
 	int32_t e;
 
-	char *sec_key = ws_create_key(&ucc->seed);
-
 	//obligatory websocket headers
+	char *sec_key = ws_create_key(&ucc->seed);
 	uncurl_set_header_str(ucc, "Upgrade", "websocket");
 	uncurl_set_header_str(ucc, "Connection", "Upgrade");
 	uncurl_set_header_str(ucc, "Sec-WebSocket-Key", sec_key);
 	uncurl_set_header_str(ucc, "Sec-WebSocket-Version", "13");
+	free(sec_key);
 
 	//write the header
 	e = uncurl_write_header(ucc, "GET", path);
-	if (e != UNCURL_OK) {r = e; goto ws_connect_end;}
+	if (e != UNCURL_OK) return e;
 
 	//we expect a 101 response code from the server
 	e = uncurl_read_header(ucc);
-	if (e != UNCURL_OK) {r = e; goto ws_connect_end;}
+	if (e != UNCURL_OK) return e;
 
 	//make sure we have a 101 from the server
 	int32_t status_code = 0;
 	e = uncurl_get_status_code(ucc, &status_code);
-	if (e != UNCURL_OK) {r = e; goto ws_connect_end;}
-	if (status_code != 101) {r = UNCURL_WS_ERR_REPLY; goto ws_connect_end;}
+	if (e != UNCURL_OK) return e;
+	if (status_code != 101) return UNCURL_WS_ERR_REPLY;
 
 	//body needs to be read as there is an extra \r\n in the response
 	uint32_t body_len = 0;
 	char *body = NULL;
 	e = uncurl_read_body_all(ucc, &body, &body_len);
 	free(body);
-	if (e != UNCURL_OK) {r = e; goto ws_connect_end;}
 
-	r = UNCURL_OK;
-
-	ws_connect_end:
-
-	free(sec_key);
-
-	return r;
+	return e;
 }
 
 UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode)
@@ -480,13 +472,6 @@ UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_
 	if (h.payload_len > buf_len) return UNCURL_ERR_BUFFER;
 
 	return ucc->read(ucc->ctx, buf, (uint32_t) h.payload_len);
-}
-
-UNCURL_EXPORT int32_t uncurl_ws_close(struct uncurl_conn *ucc)
-{
-	uint16_t reason16 = htons(1000);
-
-	return uncurl_ws_write(ucc, (char *) &reason16, 2, UNCURL_WSOP_CLOSE);
 }
 
 

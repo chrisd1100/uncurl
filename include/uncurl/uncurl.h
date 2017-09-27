@@ -61,7 +61,6 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path);
 UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode);
 UNCURL_EXPORT int32_t uncurl_ws_poll(struct uncurl_conn *ucc, int32_t timeout_ms);
 UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode);
-UNCURL_EXPORT int32_t uncurl_ws_close(struct uncurl_conn *ucc);
 
 /*** HELPERS ***/
 UNCURL_EXPORT int32_t uncurl_parse_url(char *url, struct uncurl_info *uci);
