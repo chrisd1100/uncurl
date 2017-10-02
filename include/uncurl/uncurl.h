@@ -33,9 +33,12 @@ UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl_tls_ctx *uc_tls, char **ca
 UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl_tls_ctx *uc_tls, char *cacert_file);
 
 /*** CONNECTION ***/
-UNCURL_EXPORT struct uncurl_conn *uncurl_new_conn();
+UNCURL_EXPORT struct uncurl_conn *uncurl_new_conn(struct uncurl_conn *parent);
 UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncurl_conn *ucc,
 	int32_t scheme, char *host, uint16_t port);
+UNCURL_EXPORT int32_t uncurl_listen(struct uncurl_conn *ucc, uint16_t port);
+UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl_conn *ucc,
+	struct uncurl_conn **ucc_new_in, int32_t scheme);
 UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc);
 UNCURL_EXPORT void uncurl_set_option(struct uncurl_conn *ucc, int32_t opt, int32_t val);
 
@@ -43,7 +46,7 @@ UNCURL_EXPORT void uncurl_set_option(struct uncurl_conn *ucc, int32_t opt, int32
 UNCURL_EXPORT void uncurl_set_header_str(struct uncurl_conn *ucc, char *name, char *value);
 UNCURL_EXPORT void uncurl_set_header_int(struct uncurl_conn *ucc, char *name, int32_t value);
 UNCURL_EXPORT void uncurl_free_header(struct uncurl_conn *ucc);
-UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *method, char *path);
+UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *str0, char *str1, int32_t type);
 UNCURL_EXPORT int32_t uncurl_write_body(struct uncurl_conn *ucc, char *body, uint32_t body_len);
 
 /*** RESPONSE ***/
@@ -58,6 +61,7 @@ UNCURL_EXPORT int32_t uncurl_get_header(struct uncurl_conn *ucc, char *key, int3
 
 /*** WEBSOCKETS ***/
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path);
+UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc);
 UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode);
 UNCURL_EXPORT int32_t uncurl_ws_poll(struct uncurl_conn *ucc, int32_t timeout_ms);
 UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode);

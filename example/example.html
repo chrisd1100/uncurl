@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Websocket Example</title>
+</head>
+
+<body><script>
+
+var ws = new WebSocket('ws://68.175.73.117:5250');
+
+ws.onopen = function (e) {
+	var enc = new TextEncoder('utf-8');
+	var buf = enc.encode('chris');
+	ws.send('chris dickson');
+};
+
+ws.onmessage = function (e) {
+	console.log(e.data);
+};
+
+</script></body>
+
+</html>

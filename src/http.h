@@ -11,6 +11,7 @@ enum http_type {
 struct http_header;
 
 char *http_request(char *method, char *host, char *path, char *fields);
+char *http_response(char *code, char *msg, char *fields);
 char *http_lc(char *str);
 struct http_header *http_parse_header(char *header);
 void http_free_header(struct http_header *h);

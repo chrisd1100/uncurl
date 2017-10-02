@@ -24,4 +24,6 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 int32_t tls_write(void *ctx, char *buf, uint32_t buf_size);
 int32_t tls_read(void *ctx, char *buf, uint32_t buf_size);
 
+void tls_sha1(uint8_t *dest, char *src);
+
 #endif

@@ -1,7 +1,10 @@
 #include "ws.h"
 
+#include "tls.h"
+
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <time.h>
 
 #if defined(__WINDOWS__)
@@ -9,6 +12,9 @@
 #endif
 
 static char *ENC64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static char *WSMAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+
+#define SHA1_LEN 20
 
 uint32_t ws_rand(uint32_t *seed)
 {
@@ -62,6 +68,28 @@ char *ws_create_key(uint32_t *seed)
 		buf[x] = ws_rand(seed);
 
 	return ws_base64((char *) buf, 16);
+}
+
+char *ws_create_accept_key(char *key)
+{
+	size_t buf_len = strlen(key) + strlen(WSMAGIC) + 1;
+	char *buf = malloc(buf_len);
+	snprintf(buf, buf_len, "%s%s", key, WSMAGIC);
+
+	uint8_t sha1[SHA1_LEN];
+	tls_sha1(sha1, buf);
+	free(buf);
+
+	return ws_base64((char *) sha1, SHA1_LEN);
+}
+
+int8_t ws_validate_key(char *key, char *accept_in)
+{
+	char *accept_key = ws_create_accept_key(key);
+	int8_t r = strcmp(accept_key, accept_in) ? 0 : 1;
+	free(accept_key);
+
+	return r;
 }
 
 void ws_parse_header0(struct ws_header *h, char *buf)

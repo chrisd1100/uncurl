@@ -30,6 +30,11 @@ static const char HTTP_REQUEST_FMT[] =
 	"%s"
 	"\r\n";
 
+static const char HTTP_RESPONSE_FMT[] =
+	"HTTP/1.1 %s %s\r\n"
+	"%s"
+	"\r\n";
+
 char *http_request(char *method, char *host, char *path, char *fields)
 {
 	if (!fields) fields = "";
@@ -39,6 +44,19 @@ char *http_request(char *method, char *host, char *path, char *fields)
 	char *final = malloc(len);
 
 	snprintf(final, len, HTTP_REQUEST_FMT, method, path, host, fields);
+
+	return final;
+}
+
+char *http_response(char *code, char *msg, char *fields)
+{
+	if (!fields) fields = "";
+
+	size_t len = sizeof(HTTP_RESPONSE_FMT) + strlen(code) + strlen(msg) +
+		strlen(fields) + 1;
+	char *final = malloc(len);
+
+	snprintf(final, len, HTTP_RESPONSE_FMT, code, msg, fields);
 
 	return final;
 }

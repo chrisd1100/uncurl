@@ -38,6 +38,7 @@
 
 struct net_context {
 	struct net_opts opts;
+	struct sockaddr_in addr;
 	SOCKET s;
 };
 
@@ -105,6 +106,7 @@ void net_default_opts(struct net_opts *opts)
 {
 	opts->read_timeout = 5000;
 	opts->connect_timeout = 5000;
+	opts->accept_timeout = 5000;
 	opts->read_buf = 64 * 1024;
 	opts->write_buf = 64 * 1024;
 	opts->keepalive = 1;
@@ -156,6 +158,36 @@ int32_t net_getip4(char *host, char *ip4, uint32_t ip4_len)
 	return r;
 }
 
+static int32_t net_setup(struct net_context *nc, char *ip4, uint16_t port, struct net_opts *opts)
+{
+	int32_t e;
+
+	//set options
+	memcpy(&nc->opts, opts, sizeof(struct net_opts));
+
+	nc->s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (nc->s == INVALID_SOCKET) return UNCURL_NET_ERR_SOCKET;
+
+	//set options
+	net_set_options(nc->s, &nc->opts);
+
+	//put socket in nonblocking mode, allows us to implement connection timeout
+	e = net_set_nonblocking(nc->s);
+	if (e != 0) return UNCURL_NET_ERR_BLOCKMODE;
+
+	memset(&nc->addr, 0, sizeof(struct sockaddr_in));
+	nc->addr.sin_family = AF_INET;
+	nc->addr.sin_port = htons(port);
+
+	if (ip4) {
+		inet_pton(AF_INET, ip4, &nc->addr.sin_addr);
+	} else {
+		nc->addr.sin_addr.s_addr = INADDR_ANY;
+	}
+
+	return UNCURL_OK;
+}
+
 int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct net_opts *opts)
 {
 	int32_t e;
@@ -163,27 +195,11 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 
 	struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
 
-	//set options
-	memcpy(&nc->opts, opts, sizeof(struct net_opts));
-
-	nc->s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (nc->s == INVALID_SOCKET) {r = UNCURL_NET_ERR_SOCKET; goto net_connect_failure;}
-
-	//set options
-	net_set_options(nc->s, &nc->opts);
-
-	//put socket in nonblocking mode, allows us to implement connection timeout
-	e = net_set_nonblocking(nc->s);
-	if (e != 0) {r = UNCURL_NET_ERR_BLOCKMODE; goto net_connect_failure;}
-
-	struct sockaddr_in addr;
-	memset(&addr, 0, sizeof(struct sockaddr_in));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);
-	inet_pton(AF_INET, ip4, &addr.sin_addr);
+	e = net_setup(nc, ip4, port, opts);
+	if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
 
 	//initiate the socket connection
-	e = connect(nc->s, (struct sockaddr *) &addr, sizeof(struct sockaddr_in));
+	e = connect(nc->s, (struct sockaddr *) &nc->addr, sizeof(struct sockaddr_in));
 
 	//initial socket state must be 'in progress' for nonblocking connect
 	if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; goto net_connect_failure;}
@@ -205,6 +221,55 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 	*nc_in = NULL;
 
 	return r;
+}
+
+int32_t net_listen(struct net_context **nc_in, uint16_t port, struct net_opts *opts)
+{
+	int32_t e;
+	int32_t r = UNCURL_ERR_DEFAULT;
+
+	struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
+
+	e = net_setup(nc, NULL, port, opts);
+	if (e != UNCURL_OK) {r = e; goto net_listen_failure;}
+
+	e = bind(nc->s, (struct sockaddr *) &nc->addr, sizeof(struct sockaddr_in));
+	if (e != 0) {r = UNCURL_NET_ERR_BIND; goto net_listen_failure;}
+
+	e = listen(nc->s, SOMAXCONN);
+	if (e != 0) {r = UNCURL_NET_ERR_LISTEN; goto net_listen_failure;}
+
+	return UNCURL_OK;
+
+	net_listen_failure:
+
+	net_close(nc);
+	*nc_in = NULL;
+
+	return r;
+}
+
+int32_t net_accept(struct net_context *nc, struct net_context **nc_in)
+{
+	int32_t e;
+
+	e = net_poll(nc, NET_POLLIN, nc->opts.accept_timeout);
+
+	if (e == UNCURL_OK) {
+		SOCKET s = accept(nc->s, NULL, NULL);
+		if (s == INVALID_SOCKET) return UNCURL_NET_ERR_ACCEPT;
+
+		e = net_set_nonblocking(s);
+		if (e != 0) return UNCURL_NET_ERR_BLOCKMODE;
+
+		struct net_context *new = *nc_in = calloc(1, sizeof(struct net_context));
+		memcpy(new, nc, sizeof(struct net_context));
+		new->s = s;
+
+		return UNCURL_OK;
+	}
+
+	return e;
 }
 
 int32_t net_write(void *ctx, char *buf, uint32_t buf_size)
