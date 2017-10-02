@@ -208,6 +208,8 @@ UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl
 
 UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 {
+	if (!ucc) return;
+
 	tls_close(ucc->tls);
 	ucc->tls = NULL;
 
