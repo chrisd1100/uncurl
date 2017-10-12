@@ -38,16 +38,50 @@ struct tls_state {
 	SSL_CTX *ctx;
 };
 
-int32_t tlss_load_cacert(struct tls_state *tlss, char **cacert, uint32_t num_certs)
+static char **tlss_parse_cacert(char *raw, size_t size, uint32_t *n)
+{
+	char *cacert = calloc(size + 1, 1);
+	memcpy(cacert, raw, size);
+
+	char **out = NULL;
+	uint32_t out_len = 0;
+
+	char *tok = cacert;
+	char *next = strstr(tok, "\n\n");
+	if (!next) next = strstr(tok, "\r\n\r\n");
+
+	while (next) {
+		out_len++;
+		out = realloc(out, sizeof(char *) * out_len);
+
+		size_t this_len = next - tok;
+		out[out_len - 1] = calloc(this_len + 1, 1);
+		memcpy(out[out_len - 1], tok, this_len);
+
+		tok = next + 2;
+		next = strstr(tok, "\n\n");
+		if (!next) next = strstr(tok, "\r\n\r\n");
+	}
+
+	free(cacert);
+
+	*n = out_len;
+	return out;
+}
+
+int32_t tlss_load_cacert(struct tls_state *tlss, char *cacert, size_t size)
 {
 	int32_t r = UNCURL_OK;
 
 	X509_STORE *store = SSL_CTX_get_cert_store(tlss->ctx);
 	if (!store) return UNCURL_TLS_ERR_CACERT;
 
+	uint32_t num_certs = 0;
+	char **parsed_cacert = tlss_parse_cacert(cacert, size, &num_certs);
+
 	for (uint32_t x = 0; x < num_certs && r == UNCURL_OK; x++) {
 		X509 *cert = NULL;
-		BIO *bio = BIO_new_mem_buf(cacert[x], -1);
+		BIO *bio = BIO_new_mem_buf(parsed_cacert[x], -1);
 
 		if (bio && PEM_read_bio_X509(bio, &cert, 0, NULL)) {
 			X509_STORE_add_cert(store, cert);
@@ -57,6 +91,11 @@ int32_t tlss_load_cacert(struct tls_state *tlss, char **cacert, uint32_t num_cer
 			r = UNCURL_TLS_ERR_CACERT;
 		}
 	}
+
+	for (uint32_t x = 0; x < num_certs; x++)
+		free(parsed_cacert[x]);
+
+	free(parsed_cacert);
 
 	return r;
 }

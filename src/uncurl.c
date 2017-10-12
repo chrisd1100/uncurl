@@ -75,9 +75,9 @@ UNCURL_EXPORT int32_t uncurl_new_tls_ctx(struct uncurl_tls_ctx **uc_tls_in)
 	return e;
 }
 
-UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl_tls_ctx *uc_tls, char **cacert, uint32_t num_certs)
+UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl_tls_ctx *uc_tls, char *cacert, size_t size)
 {
-	return tlss_load_cacert(uc_tls->tlss, cacert, num_certs);
+	return tlss_load_cacert(uc_tls->tlss, cacert, size);
 }
 
 UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl_tls_ctx *uc_tls, char *cacert_file)
@@ -453,7 +453,7 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 /*** WEBSOCKETS ***/
 
-UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path)
+UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin)
 {
 	int32_t e;
 	int32_t r = UNCURL_ERR_DEFAULT;
@@ -464,6 +464,7 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path)
 	uncurl_set_header_str(ucc, "Connection", "Upgrade");
 	uncurl_set_header_str(ucc, "Sec-WebSocket-Key", sec_key);
 	uncurl_set_header_str(ucc, "Sec-WebSocket-Version", "13");
+	uncurl_set_header_str(ucc, "Origin", origin);
 
 	//write the header
 	e = uncurl_write_header(ucc, "GET", path, UNCURL_REQUEST);
@@ -574,6 +575,7 @@ UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_
 
 	//check bounds
 	if (h.payload_len > ucc->opts.max_body) return UNCURL_ERR_MAX_BODY;
+	if (h.payload_len > INT32_MAX) return UNCURL_ERR_MAX_BODY;
 	if (h.payload_len > buf_len) return UNCURL_ERR_BUFFER;
 
 	e = ucc->read(ucc->ctx, buf, (uint32_t) h.payload_len);
@@ -583,7 +585,7 @@ UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_
 	if (h.mask)
 		ws_mask(buf, h.payload_len, h.masking_key);
 
-	return UNCURL_OK;
+	return (int32_t) h.payload_len;
 }
 
 

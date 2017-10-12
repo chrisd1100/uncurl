@@ -29,7 +29,7 @@ extern "C" {
 /*** TLS CONTEXT **/
 UNCURL_EXPORT void uncurl_free_tls_ctx(struct uncurl_tls_ctx *uc_tls);
 UNCURL_EXPORT int32_t uncurl_new_tls_ctx(struct uncurl_tls_ctx **uc_tls_in);
-UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl_tls_ctx *uc_tls, char **cacert, uint32_t num_certs);
+UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl_tls_ctx *uc_tls, char *cacert, size_t size);
 UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl_tls_ctx *uc_tls, char *cacert_file);
 
 /*** CONNECTION ***/
@@ -60,7 +60,7 @@ UNCURL_EXPORT int32_t uncurl_get_header(struct uncurl_conn *ucc, char *key, int3
 #define uncurl_get_header_str(ucc, key, val_str) uncurl_get_header(ucc, key, NULL, val_str)
 
 /*** WEBSOCKETS ***/
-UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path);
+UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin);
 UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc);
 UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode);
 UNCURL_EXPORT int32_t uncurl_ws_poll(struct uncurl_conn *ucc, int32_t timeout_ms);

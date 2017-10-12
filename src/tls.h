@@ -13,7 +13,7 @@ struct tls_state;
 
 int32_t tlss_alloc(struct tls_state **tlss_in);
 void tlss_free(struct tls_state *tlss);
-int32_t tlss_load_cacert(struct tls_state *tlss, char **cacert, uint32_t num_certs);
+int32_t tlss_load_cacert(struct tls_state *tlss, char *cacert, size_t size);
 int32_t tlss_load_cacert_file(struct tls_state *tlss, char *cacert_file);
 
 void tls_default_opts(struct tls_opts *opts);
