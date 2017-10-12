@@ -176,28 +176,26 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	e = SSL_set_fd(tls->ssl, net_get_fd(tls->nc));
 	if (e != 1) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
 
-	tls_connect_retry:
+	while (1) {
+		//attempt SSL connection on nonblocking socket -- 1 is success
+		e = SSL_connect(tls->ssl);
+		if (e == 1) return UNCURL_OK;
 
-	//attempt SSL connection on nonblocking socket -- 1 is success
-	e = SSL_connect(tls->ssl);
-	if (e == 1) return UNCURL_OK;
+		//retrieve net options
+		struct net_opts nopts;
+		net_get_opts(tls->nc, &nopts);
 
-	//retrieve net options
-	struct net_opts nopts;
-	net_get_opts(tls->nc, &nopts);
+		//if not successful, check for bad file descriptor
+		int32_t ne = net_error();
+		if (ne == net_bad_fd()) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
 
-	//if not successful, check for bad file descriptor
-	int32_t ne = net_error();
-	if (ne == net_bad_fd()) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
+		//if not successful, see if we neeed to poll for more data
+		int32_t ssl_e = SSL_get_error(tls->ssl, e);
+		if (ne == net_would_block() || ssl_e == SSL_ERROR_WANT_READ) {
+			e = net_poll(tls->nc, NET_POLLIN, nopts.connect_timeout);
+			if (e != UNCURL_OK) {r = e; break;}
 
-	//if not successful, see if we neeed to poll for more data
-	int32_t ssl_e = SSL_get_error(tls->ssl, e);
-	if (ne == net_would_block() || ssl_e == SSL_ERROR_WANT_READ) {
-		e = net_poll(tls->nc, NET_POLLIN, nopts.connect_timeout);
-		if (e == UNCURL_OK) goto tls_connect_retry;
-		r = e;
-	} else {
-		r = UNCURL_TLS_ERR_CONNECT;
+		} else {r = UNCURL_TLS_ERR_CONNECT; break;}
 	}
 
 	//cleanup on failure
@@ -261,4 +259,9 @@ int32_t tls_read(void *ctx, char *buf, uint32_t buf_size)
 	}
 
 	return UNCURL_OK;
+}
+
+void tls_sha1(uint8_t *dest, char *src)
+{
+	SHA1((uint8_t *) src, strlen(src), dest);
 }

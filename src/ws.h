@@ -19,6 +19,8 @@ struct ws_header {
 
 uint32_t ws_rand(uint32_t *seed);
 char *ws_create_key(uint32_t *seed);
+char *ws_create_accept_key(char *key);
+int8_t ws_validate_key(char *key, char *accept);
 void ws_parse_header0(struct ws_header *h, char *buf);
 void ws_parse_header1(struct ws_header *h, char *buf);
 void ws_mask(char *buf, uint64_t buf_len, uint32_t mask);

@@ -31,8 +31,8 @@ struct uncurl_conn {
 	struct net_opts nopts;
 	struct tls_opts topts;
 
-	char *hreq;
-	struct http_header *hres;
+	char *hout;
+	struct http_header *hin;
 
 	struct net_context *net;
 	struct tls_context *tls;
@@ -45,6 +45,7 @@ struct uncurl_conn {
 	uint16_t port;
 
 	uint32_t seed;
+	uint8_t ws_mask;
 };
 
 
@@ -93,23 +94,43 @@ static void uncurl_default_opts(struct uncurl_opts *opts)
 	opts->max_body = 128 * 1024 * 1024;
 }
 
-UNCURL_EXPORT struct uncurl_conn *uncurl_new_conn()
+UNCURL_EXPORT struct uncurl_conn *uncurl_new_conn(struct uncurl_conn *parent)
 {
 	struct uncurl_conn *ucc = calloc(1, sizeof(struct uncurl_conn));
 
-	uncurl_default_opts(&ucc->opts);
-	net_default_opts(&ucc->nopts);
-	tls_default_opts(&ucc->topts);
+	if (parent) {
+		memcpy(&ucc->opts, &parent->opts, sizeof(struct uncurl_opts));
+		memcpy(&ucc->nopts, &parent->nopts, sizeof(struct net_opts));
+		memcpy(&ucc->topts, &parent->topts, sizeof(struct tls_opts));
+
+	} else {
+		uncurl_default_opts(&ucc->opts);
+		net_default_opts(&ucc->nopts);
+		tls_default_opts(&ucc->topts);
+	}
 
 	ucc->seed = ws_rand(&ucc->seed);
 
 	return ucc;
 }
 
+static void uncurl_attach_net(struct uncurl_conn *ucc)
+{
+	ucc->ctx = ucc->net;
+	ucc->read = net_read;
+	ucc->write = net_write;
+}
+
+static void uncurl_attach_tls(struct uncurl_conn *ucc)
+{
+	ucc->ctx = ucc->tls;
+	ucc->read = tls_read;
+	ucc->write = tls_write;
+}
+
 UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncurl_conn *ucc,
 	int32_t scheme, char *host, uint16_t port)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
 	int32_t e;
 
 	//set state
@@ -119,36 +140,76 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncur
 	//resolve the hostname into an ip4 address
 	char ip4[LEN_IP4];
 	e = net_getip4(ucc->host, ip4, LEN_IP4);
-	if (e != UNCURL_OK) {r = e; goto uncurl_connect_end;}
+	if (e != UNCURL_OK) return e;
 
 	//make the net connection
 	e = net_connect(&ucc->net, ip4, ucc->port, &ucc->nopts);
-	if (e != UNCURL_OK) {r = e; goto uncurl_connect_end;}
+	if (e != UNCURL_OK) return e;
 
 	//default read/write callbacks
-	ucc->ctx = ucc->net;
-	ucc->read = net_read;
-	ucc->write = net_write;
+	uncurl_attach_net(ucc);
 
 	if (scheme == UNCURL_HTTPS || scheme == UNCURL_WSS) {
 		e = tls_connect(&ucc->tls, uc_tls->tlss, ucc->net, ucc->host, &ucc->topts);
-		if (e != UNCURL_OK) {r = e; goto uncurl_connect_end;}
+		if (e != UNCURL_OK) return e;
 
 		//tls read/write callbacks
-		ucc->ctx = ucc->tls;
-		ucc->read = tls_read;
-		ucc->write = tls_write;
+		uncurl_attach_tls(ucc);
 	}
 
-	r = UNCURL_OK;
+	return UNCURL_OK;
+}
 
-	uncurl_connect_end:
+UNCURL_EXPORT int32_t uncurl_listen(struct uncurl_conn *ucc, uint16_t port)
+{
+	int32_t e;
+
+	ucc->port = port;
+
+	e = net_listen(&ucc->net, ucc->port, &ucc->nopts);
+	if (e != UNCURL_OK) return e;
+
+	return UNCURL_OK;
+}
+
+UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl_conn *ucc,
+	struct uncurl_conn **ucc_new_in, int32_t scheme)
+{
+	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t e;
+
+	struct uncurl_conn *ucc_new = *ucc_new_in = uncurl_new_conn(ucc);
+
+	struct net_context *new_net = NULL;
+
+	e = net_accept(ucc->net, &new_net);
+	if (e != UNCURL_OK) {r = e; goto uncurl_accept_end;}
+
+	ucc_new->net = new_net;
+	uncurl_attach_net(ucc_new);
+
+	if (scheme == UNCURL_HTTPS || scheme == UNCURL_WSS) {
+		//struct tls_context *new_tls = NULL;
+		uc_tls;
+		//XXX perform SSL accept handshake
+		//ucc_new->tls = new_tls;
+		uncurl_attach_tls(ucc_new);
+	}
+
+	return UNCURL_OK;
+
+	uncurl_accept_end:
+
+	free(ucc_new);
+	*ucc_new_in = NULL;
 
 	return r;
 }
 
 UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 {
+	if (!ucc) return;
+
 	tls_close(ucc->tls);
 	ucc->tls = NULL;
 
@@ -158,11 +219,11 @@ UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 	free(ucc->host);
 	ucc->host = NULL;
 
-	http_free_header(ucc->hres);
-	ucc->hres = NULL;
+	http_free_header(ucc->hin);
+	ucc->hin = NULL;
 
-	free(ucc->hreq);
-	ucc->hreq = NULL;
+	free(ucc->hout);
+	ucc->hout = NULL;
 
 	free(ucc);
 }
@@ -181,6 +242,8 @@ UNCURL_EXPORT void uncurl_set_option(struct uncurl_conn *ucc, int32_t opt, int32
 			ucc->nopts.read_timeout = val; break;
 		case UNCURL_NOPT_CONNECT_TIMEOUT:
 			ucc->nopts.connect_timeout = val; break;
+		case UNCURL_NOPT_ACCEPT_TIMEOUT:
+			ucc->nopts.accept_timeout = val; break;
 		case UNCURL_NOPT_READ_BUF:
 			ucc->nopts.read_buf = val; break;
 		case UNCURL_NOPT_WRITE_BUF:
@@ -201,31 +264,33 @@ UNCURL_EXPORT void uncurl_set_option(struct uncurl_conn *ucc, int32_t opt, int32
 
 UNCURL_EXPORT void uncurl_set_header_str(struct uncurl_conn *ucc, char *name, char *value)
 {
-	ucc->hreq = http_set_header(ucc->hreq, name, HTTP_STRING, value);
+	ucc->hout = http_set_header(ucc->hout, name, HTTP_STRING, value);
 }
 
 UNCURL_EXPORT void uncurl_set_header_int(struct uncurl_conn *ucc, char *name, int32_t value)
 {
-	ucc->hreq = http_set_header(ucc->hreq, name, HTTP_INT, &value);
+	ucc->hout = http_set_header(ucc->hout, name, HTTP_INT, &value);
 }
 
 UNCURL_EXPORT void uncurl_free_header(struct uncurl_conn *ucc)
 {
-	free(ucc->hreq);
-	ucc->hreq = NULL;
+	free(ucc->hout);
+	ucc->hout = NULL;
 }
 
-UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *method, char *path)
+UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *str0, char *str1, int32_t type)
 {
 	int32_t e;
 
-	//generate the HTTP request header
-	char *req = http_request(method, ucc->host, path, ucc->hreq);
+	//generate the HTTP request/response header
+	char *h = (type == UNCURL_REQUEST) ?
+		http_request(str0, ucc->host, str1, ucc->hout) :
+		http_response(str0, str1, ucc->hout);
 
-	//write the request header to the HTTP server
-	e = ucc->write(ucc->ctx, req, (uint32_t) strlen(req));
+	//write the header to the HTTP client/server
+	e = ucc->write(ucc->ctx, h, (uint32_t) strlen(h));
 
-	free(req);
+	free(h);
 
 	return e;
 }
@@ -271,8 +336,8 @@ UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
 	int32_t e;
 
 	//free any exiting response headers
-	if (ucc->hres) http_free_header(ucc->hres);
-	ucc->hres = NULL;
+	if (ucc->hin) http_free_header(ucc->hin);
+	ucc->hin = NULL;
 
 	//read the HTTP response header
 	char *header = NULL;
@@ -280,7 +345,7 @@ UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
 
 	if (e == UNCURL_OK) {
 		//parse the header into the http_header struct
-		ucc->hres = http_parse_header(header);
+		ucc->hin = http_parse_header(header);
 		free(header);
 	}
 
@@ -391,6 +456,7 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path)
 {
 	int32_t e;
+	int32_t r = UNCURL_ERR_DEFAULT;
 
 	//obligatory websocket headers
 	char *sec_key = ws_create_key(&ucc->seed);
@@ -398,29 +464,68 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path)
 	uncurl_set_header_str(ucc, "Connection", "Upgrade");
 	uncurl_set_header_str(ucc, "Sec-WebSocket-Key", sec_key);
 	uncurl_set_header_str(ucc, "Sec-WebSocket-Version", "13");
-	free(sec_key);
 
 	//write the header
-	e = uncurl_write_header(ucc, "GET", path);
-	if (e != UNCURL_OK) return e;
+	e = uncurl_write_header(ucc, "GET", path, UNCURL_REQUEST);
+	if (e != UNCURL_OK) {r = e; goto uncurl_ws_connect_end;}
 
 	//we expect a 101 response code from the server
 	e = uncurl_read_header(ucc);
-	if (e != UNCURL_OK) return e;
+	if (e != UNCURL_OK) {r = e; goto uncurl_ws_connect_end;}
 
 	//make sure we have a 101 from the server
 	int32_t status_code = 0;
 	e = uncurl_get_status_code(ucc, &status_code);
+	if (e != UNCURL_OK) {r = e; goto uncurl_ws_connect_end;}
+	if (status_code != 101) {r = UNCURL_WS_ERR_STATUS; goto uncurl_ws_connect_end;}
+
+	//validate the security key response
+	char *server_sec_key = NULL;
+	e = uncurl_get_header_str(ucc, "Sec-WebSocket-Accept", &server_sec_key);
+	if (e != UNCURL_OK) {r = e; goto uncurl_ws_connect_end;}
+	if (!ws_validate_key(sec_key, server_sec_key)) {r = UNCURL_WS_ERR_KEY; goto uncurl_ws_connect_end;}
+
+	//client must send masked messages
+	ucc->ws_mask = 1;
+
+	r = UNCURL_OK;
+
+	uncurl_ws_connect_end:
+
+	free(sec_key);
+
+	return r;
+}
+
+UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc)
+{
+	int32_t e;
+
+	//wait for the client's request header
+	e = uncurl_read_header(ucc);
 	if (e != UNCURL_OK) return e;
-	if (status_code != 101) return UNCURL_WS_ERR_REPLY;
 
-	//body needs to be read as there is an extra \r\n in the response
-	uint32_t body_len = 0;
-	char *body = NULL;
-	e = uncurl_read_body_all(ucc, &body, &body_len);
-	free(body);
+	//set obligatory headers
+	uncurl_set_header_str(ucc, "Upgrade", "websocket");
+	uncurl_set_header_str(ucc, "Connection", "Upgrade");
 
-	return e;
+	//read the key and set a compliant response header
+	char *sec_key = NULL;
+	e = uncurl_get_header_str(ucc, "Sec-WebSocket-Key", &sec_key);
+	if (e != UNCURL_OK) return e;
+
+	char *accept_key = ws_create_accept_key(sec_key);
+	uncurl_set_header_str(ucc, "Sec-WebSocket-Accept", accept_key);
+	free(accept_key);
+
+	//write the response header
+	e = uncurl_write_header(ucc, "101", "Switching Protocols", UNCURL_RESPONSE);
+	if (e != UNCURL_OK) return e;
+
+	//server does not send masked messages
+	ucc->ws_mask = 0;
+
+	return UNCURL_OK;
 }
 
 UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode)
@@ -429,7 +534,7 @@ UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32
 	memset(&h, 0, sizeof(struct ws_header));
 
 	h.fin = 1;
-	h.mask = 1;
+	h.mask = ucc->ws_mask;
 	h.opcode = (uint8_t) opcode;
 	h.payload_len = buf_len;
 
@@ -471,7 +576,14 @@ UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_
 	if (h.payload_len > ucc->opts.max_body) return UNCURL_ERR_MAX_BODY;
 	if (h.payload_len > buf_len) return UNCURL_ERR_BUFFER;
 
-	return ucc->read(ucc->ctx, buf, (uint32_t) h.payload_len);
+	e = ucc->read(ucc->ctx, buf, (uint32_t) h.payload_len);
+	if (e != UNCURL_OK) return e;
+
+	//unmask the data if necessary
+	if (h.mask)
+		ws_mask(buf, h.payload_len, h.masking_key);
+
+	return UNCURL_OK;
 }
 
 
@@ -480,12 +592,12 @@ UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_
 UNCURL_EXPORT int32_t uncurl_get_status_code(struct uncurl_conn *ucc, int32_t *status_code)
 {
 	*status_code = 0;
-	return http_get_status_code(ucc->hres, status_code);
+	return http_get_status_code(ucc->hin, status_code);
 }
 
 UNCURL_EXPORT int32_t uncurl_get_header(struct uncurl_conn *ucc, char *key, int32_t *val_int, char **val_str)
 {
-	return http_get_header(ucc->hres, key, val_int, val_str);
+	return http_get_header(ucc->hin, key, val_int, val_str);
 }
 
 UNCURL_EXPORT int32_t uncurl_parse_url(char *url, struct uncurl_info *uci)

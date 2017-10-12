@@ -12,6 +12,11 @@ enum uncurl_scheme {
 	UNCURL_WSS   = 4,
 };
 
+enum uncurl_header_type {
+	UNCURL_REQUEST  = 0,
+	UNCURL_RESPONSE = 1,
+};
+
 enum ws_opcode {
 	UNCURL_WSOP_CONTINUE = 0x0,
 	UNCURL_WSOP_TEXT     = 0x1,
@@ -27,10 +32,11 @@ enum uncurl_option {
 
 	UNCURL_NOPT_READ_TIMEOUT     = 100,
 	UNCURL_NOPT_CONNECT_TIMEOUT  = 101,
-	UNCURL_NOPT_READ_BUF         = 102,
-	UNCURL_NOPT_WRITE_BUF        = 103,
-	UNCURL_NOPT_KEEPALIVE        = 104,
-	UNCURL_NOPT_TCP_NODELAY      = 105,
+	UNCURL_NOPT_ACCEPT_TIMEOUT   = 102,
+	UNCURL_NOPT_READ_BUF         = 103,
+	UNCURL_NOPT_WRITE_BUF        = 104,
+	UNCURL_NOPT_KEEPALIVE        = 105,
+	UNCURL_NOPT_TCP_NODELAY      = 106,
 
 	UNCURL_TOPT_VERIFY_HOST      = 200,
 };
