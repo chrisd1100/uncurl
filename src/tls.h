@@ -2,6 +2,7 @@
 #define __TLS_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 struct tls_opts {
 	int32_t verify_host;

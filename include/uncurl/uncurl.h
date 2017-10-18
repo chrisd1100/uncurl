@@ -8,6 +8,7 @@
 #endif
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include "status.h"
 #include "const.h"

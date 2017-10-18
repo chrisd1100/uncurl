@@ -9,6 +9,11 @@
 
 #if defined(__WINDOWS__)
 	#include <winsock2.h>
+#else
+	#include <arpa/inet.h>
+	#include <endian.h>
+	#define ntohll be64toh
+	#define htonll htobe64
 #endif
 
 static char *ENC64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
