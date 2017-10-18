@@ -55,6 +55,7 @@ ifeq ($(UNAME), Darwin)
 
 export MACOSX_DEPLOYMENT_TARGET=10.9
 
+FLAGS := $(FLAGS) -D__MACOS__
 PLATFORM = macos
 SHARED_SUFFIX = dylib
 
