@@ -152,7 +152,7 @@ void ws_mask(char *buf, uint64_t buf_len, uint32_t mask)
 
 char *ws_serialize(struct ws_header *h, uint32_t *seed, char *payload, uint64_t *size)
 {
-	char *out = calloc(h->payload_len + WS_HEADER_SIZE, 1);
+	char *out = calloc((size_t) h->payload_len + WS_HEADER_SIZE, 1);
 	uint64_t o = 0;
 
 	char b = 0;
@@ -197,7 +197,7 @@ char *ws_serialize(struct ws_header *h, uint32_t *seed, char *payload, uint64_t 
 	}
 
 	//payload goes here
-	memcpy(out + o, payload, h->payload_len);
+	memcpy(out + o, payload, (size_t) h->payload_len);
 
 	//mask if necessary
 	if (h->mask)
