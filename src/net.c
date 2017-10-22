@@ -262,6 +262,8 @@ int32_t net_accept(struct net_context *nc, struct net_context **nc_in)
 		e = net_set_nonblocking(s);
 		if (e != 0) return UNCURL_NET_ERR_BLOCKMODE;
 
+		net_set_options(s, &nc->opts);
+
 		struct net_context *new = *nc_in = calloc(1, sizeof(struct net_context));
 		memcpy(new, nc, sizeof(struct net_context));
 		new->s = s;
@@ -313,12 +315,14 @@ int32_t net_read(void *ctx, char *buf, uint32_t buf_size)
 	return UNCURL_OK;
 }
 
-int32_t net_get_fd(struct net_context *nc)
-{
-	return (int32_t) nc->s;
-}
-
 void net_get_opts(struct net_context *nc, struct net_opts *opts)
 {
 	memcpy(opts, &nc->opts, sizeof(struct net_opts));
+}
+
+void net_get_socket(struct net_context *nc, void *socket)
+{
+	SOCKET *s = (SOCKET *) socket;
+
+	*s = nc->s;
 }

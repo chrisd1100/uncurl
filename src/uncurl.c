@@ -556,6 +556,11 @@ UNCURL_EXPORT int32_t uncurl_ws_poll(struct uncurl_conn *ucc, int32_t timeout_ms
 	return net_poll(ucc->net, NET_POLLIN, timeout_ms);
 }
 
+UNCURL_EXPORT void uncurl_ws_get_socket(struct uncurl_conn *ucc, void *socket)
+{
+	net_get_socket(ucc->net, socket);
+}
+
 UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode)
 {
 	int32_t e;

@@ -65,6 +65,7 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, cha
 UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc);
 UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode);
 UNCURL_EXPORT int32_t uncurl_ws_poll(struct uncurl_conn *ucc, int32_t timeout_ms);
+UNCURL_EXPORT void uncurl_ws_get_socket(struct uncurl_conn *ucc, void *socket);
 UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode);
 #define uncurl_ws_close(ucc) uncurl_ws_write(ucc, NULL, 0, UNCURL_WSOP_CLOSE)
 

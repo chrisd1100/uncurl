@@ -212,7 +212,9 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	//set hostname extension -- sometimes required
 	SSL_set_tlsext_host_name(tls->ssl, host);
 
-	e = SSL_set_fd(tls->ssl, net_get_fd(tls->nc));
+	int32_t s = -1;
+	net_get_socket(tls->nc, &s);
+	e = SSL_set_fd(tls->ssl, s);
 	if (e != 1) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
 
 	while (1) {
