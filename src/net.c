@@ -190,7 +190,6 @@ static int32_t net_setup(struct net_context *nc, char *ip4, uint16_t port, struc
 }
 
 #include <stdio.h>
-
 int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct net_opts *opts)
 {
 	int32_t e;
@@ -200,36 +199,28 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 	int32_t this_try = 1000;
 
 	do {
+		int8_t do_wait = 0;
 		struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
 
 		e = net_setup(nc, ip4, port, opts);
-		if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
+		if (e != UNCURL_OK) {r = e; do_wait = 1; goto net_connect_failure;}
 
 		//initiate the socket connection
 		e = connect(nc->s, (struct sockaddr *) &nc->addr, sizeof(struct sockaddr_in));
 
 		//initial socket state must be 'in progress' for nonblocking connect
-		if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; goto net_connect_failure;}
+		if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; do_wait = 1; goto net_connect_failure;}
 
 		//wait for socket to be ready to write
 		e = net_poll(nc, NET_POLLOUT, this_try);
-		if (e == UNCURL_NET_ERR_TIMEOUT) printf("TIMEOUT %d\n", this_try);
-		if (e != UNCURL_OK) {
-			timeout_rem -= this_try;
-			r = e;
-			goto net_connect_failure;
-		}
+		if (e == UNCURL_NET_ERR_TIMEOUT) printf("TIMEOUT: %d\n", this_try);
+		if (e == UNCURL_NET_ERR_TIMEOUT) {r = e; timeout_rem -= this_try; goto net_connect_failure;}
+		if (e != UNCURL_OK) {r = e; do_wait = 1; goto net_connect_failure;}
+
 
 		//if the socket is clear of errors, we made a successful connection
-		e = net_get_error(nc->s);
-		if (e != 0) {
-			printf("NET ERROR: %d\n", e);
-			timeout_rem -= this_try - 1000;
-			if (timeout_rem > 0)
-				usleep(1000 * this_try);
-			r = UNCURL_NET_ERR_CONNECT_FINAL;
-			goto net_connect_failure;
-		}
+		if (net_get_error(nc->s) != 0) {printf("NET ERR: %d\n", net_get_error(nc->s));
+			r = UNCURL_NET_ERR_CONNECT_FINAL; do_wait = 1; goto net_connect_failure;}
 
 		//success
 		return UNCURL_OK;
@@ -239,6 +230,12 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 
 		net_close(nc);
 		*nc_in = NULL;
+
+		if (do_wait) {
+			timeout_rem -= this_try - 1000;
+			if (timeout_rem > 0)
+				usleep(1000 * this_try);
+		}
 
 		this_try += 1000;
 
