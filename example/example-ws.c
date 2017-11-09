@@ -15,8 +15,10 @@ static void client()
 	struct uncurl_conn *ucc = uncurl_new_conn(NULL);
 	uncurl_connect(uc_tls, ucc, UNCURL_WS, "54.242.16.17", 5250);
 
+
+	/*
 	uncurl_set_header_str(ucc, "User-Agent", "uncurl/0.0");
-	uncurl_ws_connect(ucc, "/");
+	uncurl_ws_connect(ucc, "/", "https://cdd.com");
 
 	int32_t buf_len = 1024;
 	char *buf = calloc(1, buf_len);
@@ -30,6 +32,7 @@ static void client()
 	}
 
 	uncurl_ws_close(ucc);
+	*/
 }
 
 static void server()

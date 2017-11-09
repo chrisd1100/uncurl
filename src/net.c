@@ -10,6 +10,7 @@
 	#include <ws2tcpip.h>
 	#define SHUT_RDWR 2
 	#define poll WSAPoll
+	#define usleep(ns) Sleep((ns) / 1000000)
 	#define socket_error() WSAGetLastError()
 	#define SOCKET_WOULD_BLOCK WSAEWOULDBLOCK
 	#define SOCKET_IN_PROGRESS WSAEWOULDBLOCK
@@ -105,7 +106,7 @@ static void net_set_options(SOCKET s, struct net_opts *opts)
 void net_default_opts(struct net_opts *opts)
 {
 	opts->read_timeout = 5000;
-	opts->connect_timeout = 5000;
+	opts->connect_timeout = 6000;
 	opts->accept_timeout = 5000;
 	opts->read_buf = 64 * 1024;
 	opts->write_buf = 64 * 1024;
@@ -188,37 +189,55 @@ static int32_t net_setup(struct net_context *nc, char *ip4, uint16_t port, struc
 	return UNCURL_OK;
 }
 
+#include <stdio.h>
+
 int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct net_opts *opts)
 {
 	int32_t e;
 	int32_t r = UNCURL_ERR_DEFAULT;
 
-	struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
+	int32_t timeout_rem = opts->connect_timeout;
+	int32_t this_try = 1000;
 
-	e = net_setup(nc, ip4, port, opts);
-	if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
+	do {
+		struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
 
-	//initiate the socket connection
-	e = connect(nc->s, (struct sockaddr *) &nc->addr, sizeof(struct sockaddr_in));
+		e = net_setup(nc, ip4, port, opts);
+		if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
 
-	//initial socket state must be 'in progress' for nonblocking connect
-	if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; goto net_connect_failure;}
+		//initiate the socket connection
+		e = connect(nc->s, (struct sockaddr *) &nc->addr, sizeof(struct sockaddr_in));
 
-	//wait for socket to be ready to write
-	e = net_poll(nc, NET_POLLOUT, nc->opts.connect_timeout);
-	if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
+		//initial socket state must be 'in progress' for nonblocking connect
+		if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; goto net_connect_failure;}
 
-	//if the socket is clear of errors, we made a successful connection
-	if (net_get_error(nc->s) != 0) {r = UNCURL_NET_ERR_CONNECT_FINAL; goto net_connect_failure;}
+		//wait for socket to be ready to write
+		e = net_poll(nc, NET_POLLOUT, this_try);
+		if (e == UNCURL_NET_ERR_TIMEOUT) printf("TIMEOUT %d\n", this_try);
+		if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
 
-	//success
-	return UNCURL_OK;
+		//if the socket is clear of errors, we made a successful connection
+		e = net_get_error(nc->s);
+		if (e != 0) {
+			printf("NET ERROR: %d\n", e);
+			usleep(1000 * this_try);
+			r = UNCURL_NET_ERR_CONNECT_FINAL;
+			goto net_connect_failure;
+		}
 
-	//cleanup on failure
-	net_connect_failure:
+		//success
+		return UNCURL_OK;
 
-	net_close(nc);
-	*nc_in = NULL;
+		//cleanup on failure
+		net_connect_failure:
+
+		net_close(nc);
+		*nc_in = NULL;
+
+		timeout_rem -= this_try;
+		this_try += 1000;
+
+	} while (timeout_rem > 0);
 
 	return r;
 }
