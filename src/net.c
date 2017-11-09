@@ -214,13 +214,19 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 		//wait for socket to be ready to write
 		e = net_poll(nc, NET_POLLOUT, this_try);
 		if (e == UNCURL_NET_ERR_TIMEOUT) printf("TIMEOUT %d\n", this_try);
-		if (e != UNCURL_OK) {r = e; goto net_connect_failure;}
+		if (e != UNCURL_OK) {
+			timeout_rem -= this_try;
+			r = e;
+			goto net_connect_failure;
+		}
 
 		//if the socket is clear of errors, we made a successful connection
 		e = net_get_error(nc->s);
 		if (e != 0) {
 			printf("NET ERROR: %d\n", e);
-			usleep(1000 * this_try);
+			timeout_rem -= this_try - 1000;
+			if (timeout_rem > 0)
+				usleep(1000 * this_try);
 			r = UNCURL_NET_ERR_CONNECT_FINAL;
 			goto net_connect_failure;
 		}
@@ -234,7 +240,6 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 		net_close(nc);
 		*nc_in = NULL;
 
-		timeout_rem -= this_try;
 		this_try += 1000;
 
 	} while (timeout_rem > 0);
