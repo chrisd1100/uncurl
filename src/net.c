@@ -106,7 +106,7 @@ static void net_set_options(SOCKET s, struct net_opts *opts)
 void net_default_opts(struct net_opts *opts)
 {
 	opts->read_timeout = 5000;
-	opts->connect_timeout = 6000;
+	opts->connect_timeout = 5000;
 	opts->accept_timeout = 5000;
 	opts->read_buf = 64 * 1024;
 	opts->write_buf = 64 * 1024;
@@ -195,7 +195,8 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 	int32_t r = UNCURL_ERR_DEFAULT;
 
 	int32_t timeout_rem = opts->connect_timeout;
-	int32_t this_try = 1000;
+	int32_t interval = 5000;
+	int32_t this_try = interval;
 
 	do {
 		int8_t do_wait = 0;
@@ -228,12 +229,12 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 		*nc_in = NULL;
 
 		if (do_wait) {
-			timeout_rem -= this_try - 1000;
+			timeout_rem -= this_try - interval;
 			if (timeout_rem > 0)
 				usleep(1000 * this_try);
 		}
 
-		this_try += 1000;
+		this_try += interval;
 
 	} while (timeout_rem > 0);
 
