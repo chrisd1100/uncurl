@@ -50,9 +50,6 @@ struct uncurl_conn {
 	uint8_t ws_mask;
 	char *netbuf;
 	uint64_t netbuf_size;
-
-	char **origins;
-	int32_t n_origins;
 };
 
 
@@ -242,11 +239,6 @@ UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 	http_free_header(ucc->hin);
 	free(ucc->hout);
 	free(ucc->netbuf);
-
-	for (int32_t x = 0; x < ucc->n_origins; x++)
-		free(ucc->origins[x]);
-	free(ucc->origins);
-
 	free(ucc);
 }
 
@@ -475,15 +467,6 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 /*** WEBSOCKETS ***/
 
-UNCURL_EXPORT void uncurl_ws_allow_origin(struct uncurl_conn *ucc, char *origin)
-{
-	ucc->n_origins++;
-	ucc->origins = realloc(ucc->origins, ucc->n_origins * sizeof(char *));
-
-	ucc->origins[ucc->n_origins - 1] = calloc(LEN_ORIGIN, 1);
-	snprintf(ucc->origins[ucc->n_origins - 1], LEN_ORIGIN, "%s", origin);
-}
-
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin)
 {
 	int32_t e;
@@ -532,7 +515,7 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, cha
 	return r;
 }
 
-UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc)
+UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc, char **origins, int32_t n_origins)
 {
 	int32_t e;
 
@@ -550,8 +533,8 @@ UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc)
 	if (e != UNCURL_OK) return e;
 
 	bool origin_ok = false;
-	for (int32_t x = 0; x < ucc->n_origins; x++)
-		if (strstr(origin, ucc->origins[x])) {origin_ok = true; break;}
+	for (int32_t x = 0; x < n_origins; x++)
+		if (strstr(origin, origins[x])) {origin_ok = true; break;}
 
 	if (!origin_ok) return UNCURL_WS_ERR_ORIGIN;
 

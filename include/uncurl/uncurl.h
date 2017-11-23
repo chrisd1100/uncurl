@@ -64,9 +64,8 @@ UNCURL_EXPORT int32_t uncurl_get_header(struct uncurl_conn *ucc, char *key, int3
 #define uncurl_get_header_str(ucc, key, val_str) uncurl_get_header(ucc, key, NULL, val_str)
 
 /*** WEBSOCKETS ***/
-UNCURL_EXPORT void uncurl_ws_allow_origin(struct uncurl_conn *ucc, char *origin);
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin);
-UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc);
+UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc, char **origins, int32_t n_origins);
 UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t opcode);
 UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode);
 UNCURL_EXPORT int32_t uncurl_ws_close(struct uncurl_conn *ucc, uint16_t status_code);
