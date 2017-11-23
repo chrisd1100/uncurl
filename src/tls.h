@@ -16,11 +16,14 @@ int32_t tlss_alloc(struct tls_state **tlss_in);
 void tlss_free(struct tls_state *tlss);
 int32_t tlss_load_cacert(struct tls_state *tlss, char *cacert, size_t size);
 int32_t tlss_load_cacert_file(struct tls_state *tlss, char *cacert_file);
+int32_t tlss_load_cert_and_key_file(struct tls_state *tlss, char *cert_file, char *key_file);
 
 void tls_default_opts(struct tls_opts *opts);
 void tls_close(struct tls_context *tls);
 int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	struct net_context *nc, char *host, struct tls_opts *opts);
+int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
+	struct net_context *nc, struct tls_opts *opts);
 
 int32_t tls_write(void *ctx, char *buf, uint32_t buf_size);
 int32_t tls_read(void *ctx, char *buf, uint32_t buf_size);

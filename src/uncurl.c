@@ -3,14 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "net.h"
 #include "tls.h"
 #include "http.h"
 #include "ws.h"
 
-#define LEN_IP4 16
-#define LEN_CHUNK_LEN 64
+#define LEN_IP4    16
+#define LEN_CHUNK  64
+#define LEN_ORIGIN 512
 
 #if defined(__WINDOWS__)
 	#include <winsock2.h>
@@ -46,6 +48,11 @@ struct uncurl_conn {
 
 	uint32_t seed;
 	uint8_t ws_mask;
+	char *netbuf;
+	uint64_t netbuf_size;
+
+	char **origins;
+	int32_t n_origins;
 };
 
 
@@ -83,6 +90,11 @@ UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl_tls_ctx *uc_tls, char *cac
 UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl_tls_ctx *uc_tls, char *cacert_file)
 {
 	return tlss_load_cacert_file(uc_tls->tlss, cacert_file);
+}
+
+UNCURL_EXPORT int32_t uncurl_set_cert_and_key_file(struct uncurl_tls_ctx *uc_tls, char *cert_file, char *key_file)
+{
+	return tlss_load_cert_and_key_file(uc_tls->tlss, cert_file, key_file);
 }
 
 
@@ -150,6 +162,8 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncur
 	uncurl_attach_net(ucc);
 
 	if (scheme == UNCURL_HTTPS || scheme == UNCURL_WSS) {
+		if (!uc_tls) return UNCURL_TLS_ERR_CONTEXT;
+
 		e = tls_connect(&ucc->tls, uc_tls->tlss, ucc->net, ucc->host, &ucc->topts);
 		if (e != UNCURL_OK) return e;
 
@@ -160,13 +174,13 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncur
 	return UNCURL_OK;
 }
 
-UNCURL_EXPORT int32_t uncurl_listen(struct uncurl_conn *ucc, uint16_t port)
+UNCURL_EXPORT int32_t uncurl_listen(struct uncurl_conn *ucc, char *bind_ip4, uint16_t port)
 {
 	int32_t e;
 
 	ucc->port = port;
 
-	e = net_listen(&ucc->net, ucc->port, &ucc->nopts);
+	e = net_listen(&ucc->net, bind_ip4, ucc->port, &ucc->nopts);
 	if (e != UNCURL_OK) return e;
 
 	return UNCURL_OK;
@@ -189,10 +203,12 @@ UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl
 	uncurl_attach_net(ucc_new);
 
 	if (scheme == UNCURL_HTTPS || scheme == UNCURL_WSS) {
-		//struct tls_context *new_tls = NULL;
-		uc_tls;
-		//XXX perform SSL accept handshake
-		//ucc_new->tls = new_tls;
+		if (!uc_tls) return UNCURL_TLS_ERR_CONTEXT;
+
+		e = tls_accept(&ucc_new->tls, uc_tls->tlss, ucc_new->net, &ucc_new->topts);
+		if (e != UNCURL_OK) {r = e; goto uncurl_accept_end;}
+
+		//tls read/write callbacks
 		uncurl_attach_tls(ucc_new);
 	}
 
@@ -206,24 +222,30 @@ UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl
 	return r;
 }
 
+UNCURL_EXPORT int32_t uncurl_poll(struct uncurl_conn *ucc, int32_t timeout_ms)
+{
+	return net_poll(ucc->net, NET_POLLIN, timeout_ms);
+}
+
+UNCURL_EXPORT void uncurl_get_socket(struct uncurl_conn *ucc, void *socket)
+{
+	net_get_socket(ucc->net, socket);
+}
+
 UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 {
 	if (!ucc) return;
 
 	tls_close(ucc->tls);
-	ucc->tls = NULL;
-
 	net_close(ucc->net);
-	ucc->net = NULL;
-
 	free(ucc->host);
-	ucc->host = NULL;
-
 	http_free_header(ucc->hin);
-	ucc->hin = NULL;
-
 	free(ucc->hout);
-	ucc->hout = NULL;
+	free(ucc->netbuf);
+
+	for (int32_t x = 0; x < ucc->n_origins; x++)
+		free(ucc->origins[x]);
+	free(ucc->origins);
 
 	free(ucc);
 }
@@ -356,10 +378,10 @@ static int32_t uncurl_read_chunk_len(struct uncurl_conn *ucc, uint32_t *len)
 {
 	int32_t r = UNCURL_ERR_MAX_CHUNK;
 
-	char chunk_len[LEN_CHUNK_LEN];
-	memset(chunk_len, 0, LEN_CHUNK_LEN);
+	char chunk_len[LEN_CHUNK];
+	memset(chunk_len, 0, LEN_CHUNK);
 
-	for (uint32_t x = 0; x < LEN_CHUNK_LEN - 1; x++) {
+	for (uint32_t x = 0; x < LEN_CHUNK - 1; x++) {
 		int32_t e;
 
 		e = ucc->read(ucc->ctx, chunk_len + x, 1);
@@ -453,6 +475,15 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 /*** WEBSOCKETS ***/
 
+UNCURL_EXPORT void uncurl_ws_allow_origin(struct uncurl_conn *ucc, char *origin)
+{
+	ucc->n_origins++;
+	ucc->origins = realloc(ucc->origins, ucc->n_origins * sizeof(char *));
+
+	ucc->origins[ucc->n_origins - 1] = calloc(LEN_ORIGIN, 1);
+	snprintf(ucc->origins[ucc->n_origins - 1], LEN_ORIGIN, "%s", origin);
+}
+
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin)
 {
 	int32_t e;
@@ -464,7 +495,10 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, cha
 	uncurl_set_header_str(ucc, "Connection", "Upgrade");
 	uncurl_set_header_str(ucc, "Sec-WebSocket-Key", sec_key);
 	uncurl_set_header_str(ucc, "Sec-WebSocket-Version", "13");
-	uncurl_set_header_str(ucc, "Origin", origin);
+
+	//optional origin header
+	if (origin)
+		uncurl_set_header_str(ucc, "Origin", origin);
 
 	//write the header
 	e = uncurl_write_header(ucc, "GET", path, UNCURL_REQUEST);
@@ -510,6 +544,17 @@ UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc)
 	uncurl_set_header_str(ucc, "Upgrade", "websocket");
 	uncurl_set_header_str(ucc, "Connection", "Upgrade");
 
+	//check the origin header against our whitelist
+	char *origin = NULL;
+	e = uncurl_get_header_str(ucc, "Origin", &origin);
+	if (e != UNCURL_OK) return e;
+
+	bool origin_ok = false;
+	for (int32_t x = 0; x < ucc->n_origins; x++)
+		if (strstr(origin, ucc->origins[x])) {origin_ok = true; break;}
+
+	if (!origin_ok) return UNCURL_WS_ERR_ORIGIN;
+
 	//read the key and set a compliant response header
 	char *sec_key = NULL;
 	e = uncurl_get_header_str(ucc, "Sec-WebSocket-Key", &sec_key);
@@ -529,36 +574,29 @@ UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc)
 	return UNCURL_OK;
 }
 
-UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, int32_t opcode)
+UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t opcode)
 {
 	struct ws_header h;
 	memset(&h, 0, sizeof(struct ws_header));
 
 	h.fin = 1;
 	h.mask = ucc->ws_mask;
-	h.opcode = (uint8_t) opcode;
+	h.opcode = opcode;
 	h.payload_len = buf_len;
 
+	//resize the serialized buffer
+	if (h.payload_len + WS_HEADER_SIZE > ucc->netbuf_size) {
+		free(ucc->netbuf);
+		ucc->netbuf_size = h.payload_len + WS_HEADER_SIZE;
+		ucc->netbuf = malloc(ucc->netbuf_size);
+	}
+
 	//serialize the payload into a websocket conformant message
-	uint64_t size = 0;
-	char *netbuf = ws_serialize(&h, &ucc->seed, buf, &size);
+	uint64_t out_size = 0;
+	ws_serialize(&h, &ucc->seed, buf, ucc->netbuf, &out_size);
 
 	//write full network buffer
-	int32_t e = ucc->write(ucc->ctx, netbuf, (uint32_t) size);
-
-	free(netbuf);
-
-	return e;
-}
-
-UNCURL_EXPORT int32_t uncurl_ws_poll(struct uncurl_conn *ucc, int32_t timeout_ms)
-{
-	return net_poll(ucc->net, NET_POLLIN, timeout_ms);
-}
-
-UNCURL_EXPORT void uncurl_ws_get_socket(struct uncurl_conn *ucc, void *socket)
-{
-	net_get_socket(ucc->net, socket);
+	return ucc->write(ucc->ctx, ucc->netbuf, (uint32_t) out_size);
 }
 
 UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode)
@@ -579,8 +617,7 @@ UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_
 	ws_parse_header1(&h, header_buf);
 
 	//check bounds
-	if (h.payload_len > ucc->opts.max_body) return UNCURL_ERR_MAX_BODY;
-	if (h.payload_len > INT32_MAX) return UNCURL_ERR_MAX_BODY;
+	if (h.payload_len > ucc->opts.max_body || h.payload_len > INT32_MAX) return UNCURL_ERR_MAX_BODY;
 	if (h.payload_len > buf_len) return UNCURL_ERR_BUFFER;
 
 	e = ucc->read(ucc->ctx, buf, (uint32_t) h.payload_len);
@@ -588,9 +625,16 @@ UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_
 
 	//unmask the data if necessary
 	if (h.mask)
-		ws_mask(buf, h.payload_len, h.masking_key);
+		ws_mask(buf, buf, h.payload_len, h.masking_key);
 
 	return (int32_t) h.payload_len;
+}
+
+UNCURL_EXPORT int32_t uncurl_ws_close(struct uncurl_conn *ucc, uint16_t status_code)
+{
+	uint16_t status_code_be = htons(status_code);
+
+	return uncurl_ws_write(ucc, (char *) &status_code_be, sizeof(uint16_t), UNCURL_WSOP_CLOSE);
 }
 
 

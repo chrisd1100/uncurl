@@ -23,7 +23,7 @@ char *ws_create_accept_key(char *key);
 int8_t ws_validate_key(char *key, char *accept);
 void ws_parse_header0(struct ws_header *h, char *buf);
 void ws_parse_header1(struct ws_header *h, char *buf);
-void ws_mask(char *buf, uint64_t buf_len, uint32_t mask);
-char *ws_serialize(struct ws_header *h, uint32_t *seed, char *payload, uint64_t *size);
+void ws_mask(char *out, char *in, uint64_t buf_len, uint32_t mask);
+void ws_serialize(struct ws_header *h, uint32_t *seed, char *payload, char *out, uint64_t *out_size);
 
 #endif

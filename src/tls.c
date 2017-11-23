@@ -110,6 +110,20 @@ int32_t tlss_load_cacert_file(struct tls_state *tlss, char *cacert_file)
 	return UNCURL_OK;
 }
 
+int32_t tlss_load_cert_and_key_file(struct tls_state *tlss, char *cert_file, char *key_file)
+{
+	int32_t e = SSL_CTX_use_certificate_file(tlss->ctx, cert_file, SSL_FILETYPE_PEM);
+	if (e != 1) return UNCURL_TLS_ERR_CERT;
+
+	e = SSL_CTX_use_PrivateKey_file(tlss->ctx, key_file, SSL_FILETYPE_PEM);
+	if (e != 1) return UNCURL_TLS_ERR_KEY;
+
+	e = SSL_CTX_check_private_key(tlss->ctx);
+	if (e != 1) return UNCURL_TLS_ERR_KEY;
+
+	return UNCURL_OK;
+}
+
 void tlss_free(struct tls_state *tlss)
 {
 	if (!tlss) return;
@@ -128,12 +142,8 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 	struct tls_state *tlss = *tlss_in = calloc(1, sizeof(struct tls_state));
 
 	//the SSL context can be reused for multiple connections
-	tlss->ctx = SSL_CTX_new(TLS_client_method());
+	tlss->ctx = SSL_CTX_new(TLS_method());
 	if (!tlss->ctx) {r = UNCURL_TLS_ERR_CONTEXT; goto tlss_alloc_end;}
-
-	//set peer certificate verification
-	SSL_CTX_set_verify(tlss->ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
-	SSL_CTX_set_verify_depth(tlss->ctx, TLS_VERIFY_DEPTH);
 
 	//limit ciphers to predefined secure list
 	e = SSL_CTX_set_cipher_list(tlss->ctx, TLS_CIPHER_LIST);
@@ -185,12 +195,9 @@ void tls_default_opts(struct tls_opts *opts)
 	opts->verify_host = 1;
 }
 
-int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
-	struct net_context *nc, char *host, struct tls_opts *opts)
+static int32_t tls_context_new(struct tls_context **tls_in, struct tls_state *tlss,
+	struct net_context *nc, struct tls_opts *opts)
 {
-	int32_t e;
-	int32_t r = UNCURL_ERR_DEFAULT;
-
 	struct tls_context *tls = *tls_in = calloc(1, sizeof(struct tls_context));
 
 	//set options
@@ -200,7 +207,40 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	tls->nc = nc;
 
 	tls->ssl = SSL_new(tlss->ctx);
-	if (!tls->ssl) {r = UNCURL_TLS_ERR_SSL; goto tls_connect_failure;}
+	if (!tls->ssl) return UNCURL_TLS_ERR_SSL;
+
+	int32_t s = -1;
+	net_get_socket(tls->nc, &s);
+	int32_t e = SSL_set_fd(tls->ssl, s);
+	if (e != 1) return UNCURL_TLS_ERR_FD;
+
+	return UNCURL_OK;
+}
+
+static int32_t tls_handshake_poll(struct tls_context *tls, int32_t e, int32_t timeout_ms)
+{
+	int32_t ne = net_error();
+	if (ne == net_bad_fd()) return UNCURL_TLS_ERR_FD;
+
+	if (ne == net_would_block() || SSL_get_error(tls->ssl, e) == SSL_ERROR_WANT_READ)
+		return net_poll(tls->nc, NET_POLLIN, timeout_ms);
+
+	return UNCURL_TLS_ERR_HANDSHAKE;
+}
+
+int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
+	struct net_context *nc, char *host, struct tls_opts *opts)
+{
+	int32_t e;
+	int32_t r = UNCURL_ERR_DEFAULT;
+
+	e = tls_context_new(tls_in, tlss, nc, opts);
+	struct tls_context *tls = *tls_in;
+	if (e != UNCURL_OK) {r = e; goto tls_connect_failure;}
+
+	//set peer certificate verification
+	SSL_set_verify(tls->ssl, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+	SSL_set_verify_depth(tls->ssl, TLS_VERIFY_DEPTH);
 
 	//set hostname validation
 	if (opts->verify_host) {
@@ -212,35 +252,55 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	//set hostname extension -- sometimes required
 	SSL_set_tlsext_host_name(tls->ssl, host);
 
-	int32_t s = -1;
-	net_get_socket(tls->nc, &s);
-	e = SSL_set_fd(tls->ssl, s);
-	if (e != 1) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
+	//retrieve net options
+	struct net_opts nopts;
+	net_get_opts(tls->nc, &nopts);
 
 	while (1) {
 		//attempt SSL connection on nonblocking socket -- 1 is success
 		e = SSL_connect(tls->ssl);
 		if (e == 1) return UNCURL_OK;
 
-		//retrieve net options
-		struct net_opts nopts;
-		net_get_opts(tls->nc, &nopts);
-
-		//if not successful, check for bad file descriptor
-		int32_t ne = net_error();
-		if (ne == net_bad_fd()) {r = UNCURL_TLS_ERR_FD; goto tls_connect_failure;}
-
 		//if not successful, see if we neeed to poll for more data
-		int32_t ssl_e = SSL_get_error(tls->ssl, e);
-		if (ne == net_would_block() || ssl_e == SSL_ERROR_WANT_READ) {
-			e = net_poll(tls->nc, NET_POLLIN, nopts.connect_timeout);
-			if (e != UNCURL_OK) {r = e; break;}
-
-		} else {r = UNCURL_TLS_ERR_CONNECT; break;}
+		e = tls_handshake_poll(tls, e, nopts.connect_timeout);
+		if (e != UNCURL_OK) {r = e; break;}
 	}
 
 	//cleanup on failure
 	tls_connect_failure:
+
+	tls_close(tls);
+	*tls_in = NULL;
+
+	return r;
+}
+
+int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
+	struct net_context *nc, struct tls_opts *opts)
+{
+	int32_t e;
+	int32_t r = UNCURL_ERR_DEFAULT;
+
+	e = tls_context_new(tls_in, tlss, nc, opts);
+	struct tls_context *tls = *tls_in;
+	if (e != UNCURL_OK) {r = e; goto tls_accept_failure;}
+
+	//retrieve net options
+	struct net_opts nopts;
+	net_get_opts(tls->nc, &nopts);
+
+	while (1) {
+		//attempt SSL accept on nonblocking socket -- 1 is success
+		e = SSL_accept(tls->ssl);
+		if (e == 1) return UNCURL_OK;
+
+		//if not successful, see if we neeed to poll for more data
+		e = tls_handshake_poll(tls, e, nopts.accept_timeout);
+		if (e != UNCURL_OK) {r = e; break;}
+	}
+
+	//cleanup on failure
+	tls_accept_failure:
 
 	tls_close(tls);
 	*tls_in = NULL;

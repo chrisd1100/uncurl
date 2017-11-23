@@ -241,14 +241,14 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 	return r;
 }
 
-int32_t net_listen(struct net_context **nc_in, uint16_t port, struct net_opts *opts)
+int32_t net_listen(struct net_context **nc_in, char *bind_ip4, uint16_t port, struct net_opts *opts)
 {
 	int32_t e;
 	int32_t r = UNCURL_ERR_DEFAULT;
 
 	struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
 
-	e = net_setup(nc, NULL, port, opts);
+	e = net_setup(nc, bind_ip4, port, opts);
 	if (e != UNCURL_OK) {r = e; goto net_listen_failure;}
 
 	e = bind(nc->s, (struct sockaddr *) &nc->addr, sizeof(struct sockaddr_in));

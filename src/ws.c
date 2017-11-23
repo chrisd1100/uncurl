@@ -142,17 +142,16 @@ void ws_parse_header1(struct ws_header *h, char *buf)
 	}
 }
 
-void ws_mask(char *buf, uint64_t buf_len, uint32_t mask)
+void ws_mask(char *out, char *in, uint64_t buf_len, uint32_t mask)
 {
 	char *key = (char *) &mask;
 
 	for (uint64_t x = 0; x < buf_len; x++)
-		buf[x] ^= key[x % 4];
+		out[x] = in[x] ^ key[x % 4];
 }
 
-char *ws_serialize(struct ws_header *h, uint32_t *seed, char *payload, uint64_t *size)
+void ws_serialize(struct ws_header *h, uint32_t *seed, char *payload, char *out, uint64_t *out_size)
 {
-	char *out = calloc((size_t) h->payload_len + WS_HEADER_SIZE, 1);
 	uint64_t o = 0;
 
 	char b = 0;
@@ -196,14 +195,12 @@ char *ws_serialize(struct ws_header *h, uint32_t *seed, char *payload, uint64_t 
 		o += 4;
 	}
 
-	//payload goes here
-	memcpy(out + o, payload, (size_t) h->payload_len);
-
 	//mask if necessary
-	if (h->mask)
-		ws_mask(out + o, h->payload_len, h->masking_key);
+	if (h->mask) {
+		ws_mask(out + o, payload, h->payload_len, h->masking_key);
+	} else {
+		memcpy(out + o, payload, (size_t) h->payload_len);
+	}
 
-	*size = o + h->payload_len;
-
-	return out;
+	*out_size = o + h->payload_len;
 }
