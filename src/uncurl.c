@@ -588,7 +588,7 @@ UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32
 	if (h.payload_len + WS_HEADER_SIZE > ucc->netbuf_size) {
 		free(ucc->netbuf);
 		ucc->netbuf_size = h.payload_len + WS_HEADER_SIZE;
-		ucc->netbuf = malloc(ucc->netbuf_size);
+		ucc->netbuf = malloc((size_t) ucc->netbuf_size);
 	}
 
 	//serialize the payload into a websocket conformant message
