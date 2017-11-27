@@ -52,6 +52,7 @@ enum uncurl_option {
 	UNCURL_NOPT_WRITE_BUF        = 104,
 	UNCURL_NOPT_KEEPALIVE        = 105,
 	UNCURL_NOPT_TCP_NODELAY      = 106,
+	UNCURL_NOPT_REUSEADDR        = 107,
 
 	UNCURL_TOPT_VERIFY_HOST      = 200,
 };

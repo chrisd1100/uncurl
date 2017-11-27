@@ -101,6 +101,7 @@ static void net_set_options(SOCKET s, struct net_opts *opts)
 	net_set_sockopt(s, SOL_SOCKET, SO_SNDBUF, opts->write_buf);
 	net_set_sockopt(s, SOL_SOCKET, SO_KEEPALIVE, opts->keepalive);
 	net_set_sockopt(s, IPPROTO_TCP, TCP_NODELAY, opts->tcp_nodelay);
+	net_set_sockopt(s, SOL_SOCKET, SO_REUSEADDR, opts->reuseaddr);
 }
 
 void net_default_opts(struct net_opts *opts)
@@ -112,6 +113,7 @@ void net_default_opts(struct net_opts *opts)
 	opts->write_buf = 64 * 1024;
 	opts->keepalive = 1;
 	opts->tcp_nodelay = 1;
+	opts->reuseaddr = 1;
 }
 
 int32_t net_poll(struct net_context *nc, int32_t net_event, int32_t timeout_ms)
