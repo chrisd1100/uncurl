@@ -16,6 +16,7 @@ struct net_opts {
 	int32_t write_buf;
 	int32_t keepalive;
 	int32_t tcp_nodelay;
+	int32_t reuseaddr;
 };
 
 struct net_context;

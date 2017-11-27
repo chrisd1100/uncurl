@@ -266,6 +266,8 @@ UNCURL_EXPORT void uncurl_set_option(struct uncurl_conn *ucc, int32_t opt, int32
 			ucc->nopts.keepalive = val; break;
 		case UNCURL_NOPT_TCP_NODELAY:
 			ucc->nopts.tcp_nodelay = val; break;
+		case UNCURL_NOPT_REUSEADDR:
+			ucc->nopts.reuseaddr = val; break;
 
 		//tls options
 		case UNCURL_TOPT_VERIFY_HOST:
