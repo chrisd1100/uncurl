@@ -17,6 +17,8 @@
 #if defined(__WINDOWS__)
 	#include <winsock2.h>
 	#define strdup(a) _strdup(a)
+#else
+	#include <arpa/inet.h>
 #endif
 
 struct uncurl_opts {
