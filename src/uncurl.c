@@ -536,9 +536,12 @@ UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc, char **origins, 
 	e = uncurl_get_header_str(ucc, "Origin", &origin);
 	if (e != UNCURL_OK) return e;
 
+	//the substring MUST came at the end of the origin header, thus a strstr AND a strcmp
 	bool origin_ok = false;
-	for (int32_t x = 0; x < n_origins; x++)
-		if (strstr(origin, origins[x])) {origin_ok = true; break;}
+	for (int32_t x = 0; x < n_origins; x++) {
+		char *match = strstr(origin, origins[x]);
+		if (match && !strcmp(match, origins[x])) {origin_ok = true; break;}
+	}
 
 	if (!origin_ok) return UNCURL_WS_ERR_ORIGIN;
 
