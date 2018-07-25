@@ -63,19 +63,19 @@ char *http_response(char *code, char *msg, char *fields)
 
 char *http_lc(char *str)
 {
-	for (int32_t i = 0; str[i]; i++) str[i] = (char) tolower(str[i]);
+	for (int32_t i = 0; str[i]; i++)
+		str[i] = (char) tolower(str[i]);
 
 	return str;
 }
 
 struct http_header *http_parse_header(char *header)
 {
-	char *line, *ptr = NULL;
-
 	struct http_header *h = calloc(1, sizeof(struct http_header));
 
 	//http header lines are delimited by "\r\n"
-	line = strtok_r(header, "\r\n", &ptr);
+	char *ptr = NULL;
+	char *line = strtok_r(header, "\r\n", &ptr);
 
 	for (int8_t first = 1; line; first = 0) {
 
@@ -154,13 +154,13 @@ int32_t http_get_header(struct http_header *h, char *key, int32_t *val_int, char
 				} else r = UNCURL_OK;
 			}
 
-			goto http_get_header_end;
+			goto except;
 		}
 	}
 
 	r = UNCURL_HTTP_ERR_NOT_FOUND;
 
-	http_get_header_end:
+	except:
 
 	free(lc_key);
 
@@ -175,16 +175,16 @@ int32_t http_get_status_code(struct http_header *h, int32_t *status_code)
 	char *tmp_first_line = strdup(h->first_line);
 
 	tok = strtok_r(tmp_first_line, " ", &ptr);
-	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_STATUS; goto except;};
 
 	tok = strtok_r(NULL, " ", &ptr);
-	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_STATUS; goto http_get_status_code_end;};
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_STATUS; goto except;};
 
 	*status_code = strtol(tok, NULL, 10);
 
 	r = UNCURL_OK;
 
-	http_get_status_code_end:
+	except:
 
 	free(tmp_first_line);
 
@@ -225,7 +225,7 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 
 	//scheme
 	tok = strtok_r(url, ":", &ptr);
-	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto except;}
 	http_lc(tok);
 	if (!strcmp(tok, "https")) {
 		*scheme = UNCURL_HTTPS;
@@ -235,11 +235,11 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 		*scheme = UNCURL_WS;
 	} else if (!strcmp(tok, "wss")) {
 		*scheme = UNCURL_WSS;
-	} else {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto http_parse_url_end;}
+	} else {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto except;}
 
 	//host + port
 	tok = strtok_r(NULL, "/", &ptr);
-	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_HOST; goto http_parse_url_end;}
+	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_HOST; goto except;}
 
 	//try to find a port
 	*host = strdup(tok);
@@ -260,7 +260,7 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 
 	r = UNCURL_OK;
 
-	http_parse_url_end:
+	except:
 
 	free(url);
 

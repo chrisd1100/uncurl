@@ -1,26 +1,26 @@
 #include "ws.h"
 
-#include "tls.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
 
+#include "tls.h"
+
 #if defined(__WINDOWS__)
 	#include <winsock2.h>
-#elif defined(__MACOS__)
-#elif defined(__UNIXY__)
+
+#elif !defined(__MACOS__) && defined(__UNIXY__)
 	#include <arpa/inet.h>
 	#include <endian.h>
 	#define ntohll be64toh
 	#define htonll htobe64
 #endif
 
+#define SHA1_LEN 20
+
 static char *ENC64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 static char *WSMAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-
-#define SHA1_LEN 20
 
 uint32_t ws_rand(uint32_t *seed)
 {
@@ -100,11 +100,9 @@ int8_t ws_validate_key(char *key, char *accept_in)
 
 void ws_parse_header0(struct ws_header *h, char *buf)
 {
-	char b;
-
 	memset(h, 0, sizeof(struct ws_header));
 
-	b = buf[0];
+	char b = buf[0];
 	h->fin = (b & 0x80) ? 1 : 0;
 	h->rsv1 = (b & 0x40) ? 1 : 0;
 	h->rsv2 = (b & 0x20) ? 1 : 0;

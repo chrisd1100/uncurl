@@ -1,8 +1,8 @@
 #ifndef __UNCURL_CONST_H
 #define __UNCURL_CONST_H
 
-#define UNCURL_PORT 80
-#define UNCURL_PORT_S 443
+#define UNCURL_PORT    80
+#define UNCURL_PORT_S  443
 
 enum uncurl_scheme {
 	UNCURL_NONE  = 0,

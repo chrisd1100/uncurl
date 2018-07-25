@@ -4,11 +4,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "net.h"
+
 struct tls_opts {
 	int32_t verify_host;
 };
 
-struct net_context;
 struct tls_context;
 struct tls_state;
 

@@ -10,16 +10,16 @@
 #include "http.h"
 #include "ws.h"
 
-#define LEN_IP4    16
-#define LEN_CHUNK  64
-#define LEN_ORIGIN 512
-
 #if defined(__WINDOWS__)
 	#include <winsock2.h>
 	#define strdup(a) _strdup(a)
 #else
 	#include <arpa/inet.h>
 #endif
+
+#define LEN_IP4    16
+#define LEN_CHUNK  64
+#define LEN_ORIGIN 512
 
 struct uncurl_opts {
 	uint32_t max_header;
@@ -68,11 +68,9 @@ UNCURL_EXPORT void uncurl_free_tls_ctx(struct uncurl_tls_ctx *uc_tls)
 
 UNCURL_EXPORT int32_t uncurl_new_tls_ctx(struct uncurl_tls_ctx **uc_tls_in)
 {
-	int32_t e;
-
 	struct uncurl_tls_ctx *uc_tls = *uc_tls_in = calloc(1, sizeof(struct uncurl_tls_ctx));
 
-	e = tlss_alloc(&uc_tls->tlss);
+	int32_t e = tlss_alloc(&uc_tls->tlss);
 	if (e == UNCURL_OK) return e;
 
 	uncurl_free_tls_ctx(uc_tls);
@@ -142,15 +140,13 @@ static void uncurl_attach_tls(struct uncurl_conn *ucc)
 UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncurl_conn *ucc,
 	int32_t scheme, char *host, uint16_t port)
 {
-	int32_t e;
-
 	//set state
 	ucc->host = strdup(host);
 	ucc->port = port;
 
 	//resolve the hostname into an ip4 address
 	char ip4[LEN_IP4];
-	e = net_getip4(ucc->host, ip4, LEN_IP4);
+	int32_t e = net_getip4(ucc->host, ip4, LEN_IP4);
 	if (e != UNCURL_OK) return e;
 
 	//make the net connection
@@ -175,11 +171,9 @@ UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncur
 
 UNCURL_EXPORT int32_t uncurl_listen(struct uncurl_conn *ucc, char *bind_ip4, uint16_t port)
 {
-	int32_t e;
-
 	ucc->port = port;
 
-	e = net_listen(&ucc->net, bind_ip4, ucc->port, &ucc->nopts);
+	int32_t e = net_listen(&ucc->net, bind_ip4, ucc->port, &ucc->nopts);
 	if (e != UNCURL_OK) return e;
 
 	return UNCURL_OK;
@@ -188,15 +182,13 @@ UNCURL_EXPORT int32_t uncurl_listen(struct uncurl_conn *ucc, char *bind_ip4, uin
 UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl_conn *ucc,
 	struct uncurl_conn **ucc_new_in, int32_t scheme)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
-	int32_t e;
-
 	struct uncurl_conn *ucc_new = *ucc_new_in = uncurl_new_conn(ucc);
 
+	int32_t r = UNCURL_ERR_DEFAULT;
 	struct net_context *new_net = NULL;
 
-	e = net_accept(ucc->net, &new_net);
-	if (e != UNCURL_OK) {r = e; goto uncurl_accept_end;}
+	int32_t e = net_accept(ucc->net, &new_net);
+	if (e != UNCURL_OK) {r = e; goto except;}
 
 	ucc_new->net = new_net;
 	uncurl_attach_net(ucc_new);
@@ -205,7 +197,7 @@ UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl
 		if (!uc_tls) return UNCURL_TLS_ERR_CONTEXT;
 
 		e = tls_accept(&ucc_new->tls, uc_tls->tlss, ucc_new->net, &ucc_new->topts);
-		if (e != UNCURL_OK) {r = e; goto uncurl_accept_end;}
+		if (e != UNCURL_OK) {r = e; goto except;}
 
 		//tls read/write callbacks
 		uncurl_attach_tls(ucc_new);
@@ -213,7 +205,7 @@ UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl
 
 	return UNCURL_OK;
 
-	uncurl_accept_end:
+	except:
 
 	free(ucc_new);
 	*ucc_new_in = NULL;
@@ -298,15 +290,13 @@ UNCURL_EXPORT void uncurl_free_header(struct uncurl_conn *ucc)
 
 UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *str0, char *str1, int32_t type)
 {
-	int32_t e;
-
 	//generate the HTTP request/response header
 	char *h = (type == UNCURL_REQUEST) ?
 		http_request(str0, ucc->host, str1, ucc->hout) :
 		http_response(str0, str1, ucc->hout);
 
 	//write the header to the HTTP client/server
-	e = ucc->write(ucc->ctx, h, (uint32_t) strlen(h));
+	int32_t e = ucc->write(ucc->ctx, h, (uint32_t) strlen(h));
 
 	free(h);
 
@@ -315,11 +305,7 @@ UNCURL_EXPORT int32_t uncurl_write_header(struct uncurl_conn *ucc, char *str0, c
 
 UNCURL_EXPORT int32_t uncurl_write_body(struct uncurl_conn *ucc, char *body, uint32_t body_len)
 {
-	int32_t e;
-
-	e = ucc->write(ucc->ctx, body, body_len);
-
-	return e;
+	return ucc->write(ucc->ctx, body, body_len);
 }
 
 
@@ -332,11 +318,8 @@ static int32_t uncurl_read_header_(struct uncurl_conn *ucc, char **header)
 	uint32_t max_header = ucc->opts.max_header;
 	char *h = *header = calloc(max_header, 1);
 
-	uint32_t x = 0;
-	for (; x < max_header - 1; x++) {
-		int32_t e;
-
-		e = ucc->read(ucc->ctx, h + x, 1);
+	for (uint32_t x = 0; x < max_header - 1; x++) {
+		int32_t e = ucc->read(ucc->ctx, h + x, 1);
 		if (e != UNCURL_OK) {r = e; break;}
 
 		if (x > 2 && h[x - 3] == '\r' && h[x - 2] == '\n' && h[x - 1] == '\r' && h[x] == '\n')
@@ -351,15 +334,13 @@ static int32_t uncurl_read_header_(struct uncurl_conn *ucc, char **header)
 
 UNCURL_EXPORT int32_t uncurl_read_header(struct uncurl_conn *ucc)
 {
-	int32_t e;
-
 	//free any exiting response headers
 	if (ucc->hin) http_free_header(ucc->hin);
 	ucc->hin = NULL;
 
 	//read the HTTP response header
 	char *header = NULL;
-	e = uncurl_read_header_(ucc, &header);
+	int32_t e = uncurl_read_header_(ucc, &header);
 
 	if (e == UNCURL_OK) {
 		//parse the header into the http_header struct
@@ -378,9 +359,7 @@ static int32_t uncurl_read_chunk_len(struct uncurl_conn *ucc, uint32_t *len)
 	memset(chunk_len, 0, LEN_CHUNK);
 
 	for (uint32_t x = 0; x < LEN_CHUNK - 1; x++) {
-		int32_t e;
-
-		e = ucc->read(ucc->ctx, chunk_len + x, 1);
+		int32_t e = ucc->read(ucc->ctx, chunk_len + x, 1);
 		if (e != UNCURL_OK) {r = e; break;}
 
 		if (x > 0 && chunk_len[x - 1] == '\r' && chunk_len[x] == '\n') {
@@ -401,10 +380,8 @@ static int32_t uncurl_response_body_chunked(struct uncurl_conn *ucc, char **body
 	uint32_t chunk_len = 0;
 
 	do {
-		int32_t e;
-
 		//read the chunk size one byte at a time
-		e = uncurl_read_chunk_len(ucc, &chunk_len);
+		int32_t e = uncurl_read_chunk_len(ucc, &chunk_len);
 		if (e != UNCURL_OK) return e;
 		if (offset + chunk_len > ucc->opts.max_body) return UNCURL_ERR_MAX_BODY;
 
@@ -428,37 +405,36 @@ static int32_t uncurl_response_body_chunked(struct uncurl_conn *ucc, char **body
 UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body, uint32_t *body_len)
 {
 	int32_t r = UNCURL_ERR_DEFAULT;
-	int32_t e;
 
 	*body = NULL;
 	*body_len = 0;
 
 	//look for chunked response
 	if (uncurl_check_header(ucc, "Transfer-Encoding", "chunked")) {
-		e = uncurl_response_body_chunked(ucc, body, body_len);
-		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
+		int32_t e = uncurl_response_body_chunked(ucc, body, body_len);
+		if (e != UNCURL_OK) {r = e; goto except;}
 
 		r = UNCURL_OK;
 	}
 
 	//fall through to using Content-Length
 	if (r != UNCURL_OK) {
-		e = uncurl_get_header_int(ucc, "Content-Length", (int32_t *) body_len);
-		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
+		int32_t e = uncurl_get_header_int(ucc, "Content-Length", (int32_t *) body_len);
+		if (e != UNCURL_OK) {r = e; goto except;}
 
-		if (*body_len == 0) {r = UNCURL_ERR_NO_BODY; goto uncurl_response_body_end;}
-		if (*body_len > ucc->opts.max_body) {r = UNCURL_ERR_MAX_BODY; goto uncurl_response_body_end;}
+		if (*body_len == 0) {r = UNCURL_ERR_NO_BODY; goto except;}
+		if (*body_len > ucc->opts.max_body) {r = UNCURL_ERR_MAX_BODY; goto except;}
 
 		*body = calloc(*body_len + 1, 1);
 
 		e = ucc->read(ucc->ctx, *body, *body_len);
 
-		if (e != UNCURL_OK) {r = e; goto uncurl_response_body_end;}
+		if (e != UNCURL_OK) {r = e; goto except;}
 
 		r = UNCURL_OK;
 	}
 
-	uncurl_response_body_end:
+	except:
 
 	if (r != UNCURL_OK) {
 		free(*body);
@@ -473,7 +449,6 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin)
 {
-	int32_t e;
 	int32_t r = UNCURL_ERR_DEFAULT;
 
 	//obligatory websocket headers
@@ -488,31 +463,31 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, cha
 		uncurl_set_header_str(ucc, "Origin", origin);
 
 	//write the header
-	e = uncurl_write_header(ucc, "GET", path, UNCURL_REQUEST);
-	if (e != UNCURL_OK) {r = e; goto uncurl_ws_connect_end;}
+	int32_t e = uncurl_write_header(ucc, "GET", path, UNCURL_REQUEST);
+	if (e != UNCURL_OK) {r = e; goto except;}
 
 	//we expect a 101 response code from the server
 	e = uncurl_read_header(ucc);
-	if (e != UNCURL_OK) {r = e; goto uncurl_ws_connect_end;}
+	if (e != UNCURL_OK) {r = e; goto except;}
 
 	//make sure we have a 101 from the server
 	int32_t status_code = 0;
 	e = uncurl_get_status_code(ucc, &status_code);
-	if (e != UNCURL_OK) {r = e; goto uncurl_ws_connect_end;}
-	if (status_code != 101) {r = UNCURL_WS_ERR_STATUS; goto uncurl_ws_connect_end;}
+	if (e != UNCURL_OK) {r = e; goto except;}
+	if (status_code != 101) {r = UNCURL_WS_ERR_STATUS; goto except;}
 
 	//validate the security key response
 	char *server_sec_key = NULL;
 	e = uncurl_get_header_str(ucc, "Sec-WebSocket-Accept", &server_sec_key);
-	if (e != UNCURL_OK) {r = e; goto uncurl_ws_connect_end;}
-	if (!ws_validate_key(sec_key, server_sec_key)) {r = UNCURL_WS_ERR_KEY; goto uncurl_ws_connect_end;}
+	if (e != UNCURL_OK) {r = e; goto except;}
+	if (!ws_validate_key(sec_key, server_sec_key)) {r = UNCURL_WS_ERR_KEY; goto except;}
 
 	//client must send masked messages
 	ucc->ws_mask = 1;
 
 	r = UNCURL_OK;
 
-	uncurl_ws_connect_end:
+	except:
 
 	free(sec_key);
 
@@ -521,10 +496,8 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, cha
 
 UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc, char **origins, int32_t n_origins)
 {
-	int32_t e;
-
 	//wait for the client's request header
-	e = uncurl_read_header(ucc);
+	int32_t e = uncurl_read_header(ucc);
 	if (e != UNCURL_OK) return e;
 
 	//set obligatory headers
@@ -591,12 +564,11 @@ UNCURL_EXPORT int32_t uncurl_ws_write(struct uncurl_conn *ucc, char *buf, uint32
 
 UNCURL_EXPORT int32_t uncurl_ws_read(struct uncurl_conn *ucc, char *buf, uint32_t buf_len, uint8_t *opcode)
 {
-	int32_t e;
 	char header_buf[WS_HEADER_SIZE];
 	struct ws_header h;
 
 	//first two bytes contain most control information
-	e = ucc->read(ucc->ctx, header_buf, 2);
+	int32_t e = ucc->read(ucc->ctx, header_buf, 2);
 	if (e != UNCURL_OK) return e;
 	ws_parse_header0(&h, header_buf);
 	*opcode = h.opcode;
@@ -650,13 +622,11 @@ UNCURL_EXPORT int32_t uncurl_parse_url(char *url, struct uncurl_info *uci)
 
 UNCURL_EXPORT int8_t uncurl_check_header(struct uncurl_conn *ucc, char *name, char *subval)
 {
-	int32_t e;
 	char *val = NULL;
 
-	e = uncurl_get_header_str(ucc, name, &val);
-	if (e == UNCURL_OK && strstr(http_lc(val), subval)) return 1;
+	int32_t e = uncurl_get_header_str(ucc, name, &val);
 
-	return 0;
+	return (e == UNCURL_OK && strstr(http_lc(val), subval)) ? 1 : 0;
 }
 
 UNCURL_EXPORT void uncurl_free_info(struct uncurl_info *uci)

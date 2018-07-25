@@ -7,7 +7,6 @@
 #include "openssl/x509v3.h"
 
 #include "uncurl/status.h"
-#include "net.h"
 
 #define TLS_VERIFY_DEPTH 4
 
@@ -102,9 +101,7 @@ int32_t tlss_load_cacert(struct tls_state *tlss, char *cacert, size_t size)
 
 int32_t tlss_load_cacert_file(struct tls_state *tlss, char *cacert_file)
 {
-	int32_t e;
-
-	e = SSL_CTX_load_verify_locations(tlss->ctx, cacert_file, NULL);
+	int32_t e = SSL_CTX_load_verify_locations(tlss->ctx, cacert_file, NULL);
 	if (e != 1) return UNCURL_TLS_ERR_CACERT;
 
 	return UNCURL_OK;
@@ -136,18 +133,17 @@ void tlss_free(struct tls_state *tlss)
 
 int32_t tlss_alloc(struct tls_state **tlss_in)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
-	int32_t e;
-
 	struct tls_state *tlss = *tlss_in = calloc(1, sizeof(struct tls_state));
+
+	int32_t r = UNCURL_ERR_DEFAULT;
 
 	//the SSL context can be reused for multiple connections
 	tlss->ctx = SSL_CTX_new(TLS_method());
-	if (!tlss->ctx) {r = UNCURL_TLS_ERR_CONTEXT; goto tlss_alloc_end;}
+	if (!tlss->ctx) {r = UNCURL_TLS_ERR_CONTEXT; goto except;}
 
 	//limit ciphers to predefined secure list
-	e = SSL_CTX_set_cipher_list(tlss->ctx, TLS_CIPHER_LIST);
-	if (e != 1) {r = UNCURL_TLS_ERR_CIPHER; goto tlss_alloc_end;}
+	int32_t e = SSL_CTX_set_cipher_list(tlss->ctx, TLS_CIPHER_LIST);
+	if (e != 1) {r = UNCURL_TLS_ERR_CIPHER; goto except;}
 
 	//disable any non TLS protocols
 	const long flags = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION;
@@ -155,7 +151,7 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 
 	return UNCURL_OK;
 
-	tlss_alloc_end:
+	except:
 
 	tlss_free(tlss);
 	*tlss_in = NULL;
@@ -231,12 +227,11 @@ static int32_t tls_handshake_poll(struct tls_context *tls, int32_t e, int32_t ti
 int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	struct net_context *nc, char *host, struct tls_opts *opts)
 {
-	int32_t e;
 	int32_t r = UNCURL_ERR_DEFAULT;
 
-	e = tls_context_new(tls_in, tlss, nc, opts);
+	int32_t e = tls_context_new(tls_in, tlss, nc, opts);
 	struct tls_context *tls = *tls_in;
-	if (e != UNCURL_OK) {r = e; goto tls_connect_failure;}
+	if (e != UNCURL_OK) {r = e; goto except;}
 
 	//set peer certificate verification
 	SSL_set_verify(tls->ssl, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
@@ -266,8 +261,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 		if (e != UNCURL_OK) {r = e; break;}
 	}
 
-	//cleanup on failure
-	tls_connect_failure:
+	except:
 
 	tls_close(tls);
 	*tls_in = NULL;
@@ -278,12 +272,11 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
 	struct net_context *nc, struct tls_opts *opts)
 {
-	int32_t e;
 	int32_t r = UNCURL_ERR_DEFAULT;
 
-	e = tls_context_new(tls_in, tlss, nc, opts);
+	int32_t e = tls_context_new(tls_in, tlss, nc, opts);
 	struct tls_context *tls = *tls_in;
-	if (e != UNCURL_OK) {r = e; goto tls_accept_failure;}
+	if (e != UNCURL_OK) {r = e; goto except;}
 
 	//retrieve net options
 	struct net_opts nopts;
@@ -299,8 +292,7 @@ int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
 		if (e != UNCURL_OK) {r = e; break;}
 	}
 
-	//cleanup on failure
-	tls_accept_failure:
+	except:
 
 	tls_close(tls);
 	*tls_in = NULL;
@@ -312,11 +304,10 @@ int32_t tls_write(void *ctx, char *buf, uint32_t buf_size)
 {
 	struct tls_context *tls = (struct tls_context *) ctx;
 
-	int32_t n;
 	uint32_t total = 0;
 
 	while (total < buf_size) {
-		n = SSL_write(tls->ssl, buf + total, buf_size - total);
+		int32_t n = SSL_write(tls->ssl, buf + total, buf_size - total);
 		if (n <= 0) {
 			int32_t ssl_e = SSL_get_error(tls->ssl, n);
 			if (ssl_e == SSL_ERROR_WANT_READ || ssl_e == SSL_ERROR_WANT_WRITE) continue;
@@ -334,21 +325,19 @@ int32_t tls_read(void *ctx, char *buf, uint32_t buf_size)
 {
 	struct tls_context *tls = (struct tls_context *) ctx;
 
-	int32_t e;
-	int32_t n;
-	uint32_t total = 0;
-
 	//retrieve net options
 	struct net_opts nopts;
 	net_get_opts(tls->nc, &nopts);
 
+	uint32_t total = 0;
+
 	while (total < buf_size) {
 		if (SSL_has_pending(tls->ssl) == 0) {
-			e = net_poll(tls->nc, NET_POLLIN, nopts.read_timeout);
+			int32_t e = net_poll(tls->nc, NET_POLLIN, nopts.read_timeout);
 			if (e != UNCURL_OK) return e;
 		}
 
-		n = SSL_read(tls->ssl, buf + total, buf_size - total);
+		int32_t n = SSL_read(tls->ssl, buf + total, buf_size - total);
 		if (n <= 0) {
 			int32_t ssl_e = SSL_get_error(tls->ssl, n);
 			if (ssl_e == SSL_ERROR_WANT_READ || ssl_e == SSL_ERROR_WANT_WRITE) continue;
