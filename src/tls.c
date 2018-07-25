@@ -135,7 +135,7 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 {
 	struct tls_state *tlss = *tlss_in = calloc(1, sizeof(struct tls_state));
 
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 
 	//the SSL context can be reused for multiple connections
 	tlss->ctx = SSL_CTX_new(TLS_method());
@@ -149,12 +149,12 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 	const long flags = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION;
 	SSL_CTX_set_options(tlss->ctx, flags);
 
-	return UNCURL_OK;
-
 	except:
 
-	tlss_free(tlss);
-	*tlss_in = NULL;
+	if (r != UNCURL_OK) {
+		tlss_free(tlss);
+		*tlss_in = NULL;
+	}
 
 	return r;
 }
@@ -227,7 +227,7 @@ static int32_t tls_handshake_poll(struct tls_context *tls, int32_t e, int32_t ti
 int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	struct net_context *nc, char *host, struct tls_opts *opts)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 
 	int32_t e = tls_context_new(tls_in, tlss, nc, opts);
 	struct tls_context *tls = *tls_in;
@@ -254,7 +254,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	while (1) {
 		//attempt SSL connection on nonblocking socket -- 1 is success
 		e = SSL_connect(tls->ssl);
-		if (e == 1) return UNCURL_OK;
+		if (e == 1) break;
 
 		//if not successful, see if we neeed to poll for more data
 		e = tls_handshake_poll(tls, e, nopts.connect_timeout);
@@ -263,8 +263,10 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 
 	except:
 
-	tls_close(tls);
-	*tls_in = NULL;
+	if (r != UNCURL_OK) {
+		tls_close(tls);
+		*tls_in = NULL;
+	}
 
 	return r;
 }
@@ -272,7 +274,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
 	struct net_context *nc, struct tls_opts *opts)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 
 	int32_t e = tls_context_new(tls_in, tlss, nc, opts);
 	struct tls_context *tls = *tls_in;
@@ -285,7 +287,7 @@ int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
 	while (1) {
 		//attempt SSL accept on nonblocking socket -- 1 is success
 		e = SSL_accept(tls->ssl);
-		if (e == 1) return UNCURL_OK;
+		if (e == 1) break;
 
 		//if not successful, see if we neeed to poll for more data
 		e = tls_handshake_poll(tls, e, nopts.accept_timeout);
@@ -294,8 +296,10 @@ int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
 
 	except:
 
-	tls_close(tls);
-	*tls_in = NULL;
+	if (r != UNCURL_OK) {
+		tls_close(tls);
+		*tls_in = NULL;
+	}
 
 	return r;
 }

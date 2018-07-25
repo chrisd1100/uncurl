@@ -132,7 +132,7 @@ int32_t net_poll(struct net_context *nc, int32_t net_event, int32_t timeout_ms)
 
 int32_t net_getip4(char *host, char *ip4, uint32_t ip4_len)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 	struct addrinfo hints;
 	struct addrinfo *servinfo = NULL;
 
@@ -150,11 +150,10 @@ int32_t net_getip4(char *host, char *ip4, uint32_t ip4_len)
 	const char *dst = inet_ntop(AF_INET, &addr->sin_addr, ip4, ip4_len);
 	if (!dst) {r = UNCURL_NET_ERR_NTOP; goto except;}
 
-	r = UNCURL_OK;
-
 	except:
 
-	if (servinfo) freeaddrinfo(servinfo);
+	if (servinfo)
+		freeaddrinfo(servinfo);
 
 	return r;
 }
@@ -239,7 +238,7 @@ int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct
 
 int32_t net_listen(struct net_context **nc_in, char *bind_ip4, uint16_t port, struct net_opts *opts)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 
 	struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
 
@@ -252,12 +251,12 @@ int32_t net_listen(struct net_context **nc_in, char *bind_ip4, uint16_t port, st
 	e = listen(nc->s, SOMAXCONN);
 	if (e != 0) {r = UNCURL_NET_ERR_LISTEN; goto except;}
 
-	return UNCURL_OK;
-
 	except:
 
-	net_close(nc);
-	*nc_in = NULL;
+	if (r != UNCURL_OK) {
+		net_close(nc);
+		*nc_in = NULL;
+	}
 
 	return r;
 }

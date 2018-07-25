@@ -212,7 +212,7 @@ char *http_set_header(char *header, char *name, int32_t type, void *value)
 
 int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *port, char **path)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 	char *tok, *ptr = NULL;
 	char *tok2, *ptr2 = NULL;
 
@@ -257,8 +257,6 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 	size_t path_len = strlen(tok) + 2;
 	*path = malloc(strlen(tok) + 2);
 	snprintf(*path, path_len, "/%s", tok);
-
-	r = UNCURL_OK;
 
 	except:
 

@@ -184,7 +184,7 @@ UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl
 {
 	struct uncurl_conn *ucc_new = *ucc_new_in = uncurl_new_conn(ucc);
 
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 	struct net_context *new_net = NULL;
 
 	int32_t e = net_accept(ucc->net, &new_net);
@@ -203,12 +203,12 @@ UNCURL_EXPORT int32_t uncurl_accept(struct uncurl_tls_ctx *uc_tls, struct uncurl
 		uncurl_attach_tls(ucc_new);
 	}
 
-	return UNCURL_OK;
-
 	except:
 
-	free(ucc_new);
-	*ucc_new_in = NULL;
+	if (r != UNCURL_OK) {
+		free(ucc_new);
+		*ucc_new_in = NULL;
+	}
 
 	return r;
 }
@@ -404,7 +404,7 @@ static int32_t uncurl_response_body_chunked(struct uncurl_conn *ucc, char **body
 
 UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body, uint32_t *body_len)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 
 	*body = NULL;
 	*body_len = 0;
@@ -414,11 +414,8 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 		int32_t e = uncurl_response_body_chunked(ucc, body, body_len);
 		if (e != UNCURL_OK) {r = e; goto except;}
 
-		r = UNCURL_OK;
-	}
-
-	//fall through to using Content-Length
-	if (r != UNCURL_OK) {
+	//use Content-Length
+	} else {
 		int32_t e = uncurl_get_header_int(ucc, "Content-Length", (int32_t *) body_len);
 		if (e != UNCURL_OK) {r = e; goto except;}
 
@@ -430,8 +427,6 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 		e = ucc->read(ucc->ctx, *body, *body_len);
 
 		if (e != UNCURL_OK) {r = e; goto except;}
-
-		r = UNCURL_OK;
 	}
 
 	except:
@@ -449,7 +444,7 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 
 	//obligatory websocket headers
 	char *sec_key = ws_create_key(&ucc->seed);
@@ -484,8 +479,6 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, cha
 
 	//client must send masked messages
 	ucc->ws_mask = 1;
-
-	r = UNCURL_OK;
 
 	except:
 
