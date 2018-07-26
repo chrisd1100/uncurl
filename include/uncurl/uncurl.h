@@ -32,7 +32,8 @@ UNCURL_EXPORT void uncurl_free_tls_ctx(struct uncurl_tls_ctx *uc_tls);
 UNCURL_EXPORT int32_t uncurl_new_tls_ctx(struct uncurl_tls_ctx **uc_tls_in);
 UNCURL_EXPORT int32_t uncurl_set_cacert(struct uncurl_tls_ctx *uc_tls, char *cacert, size_t size);
 UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl_tls_ctx *uc_tls, char *cacert_file);
-UNCURL_EXPORT int32_t uncurl_set_cert_and_key_file(struct uncurl_tls_ctx *uc_tls, char *cert_file, char *key_file);
+UNCURL_EXPORT int32_t uncurl_set_cert_and_key(struct uncurl_tls_ctx *uc_tls,
+	char *cert, size_t cert_size, char *key, size_t key_size);
 
 /*** CONNECTION ***/
 UNCURL_EXPORT struct uncurl_conn *uncurl_new_conn(struct uncurl_conn *parent);

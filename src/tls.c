@@ -5,6 +5,7 @@
 
 #include "openssl/ssl.h"
 #include "openssl/x509v3.h"
+#include "openssl/rsa.h"
 
 #include "uncurl/status.h"
 
@@ -107,18 +108,38 @@ int32_t tlss_load_cacert_file(struct tls_state *tlss, char *cacert_file)
 	return UNCURL_OK;
 }
 
-int32_t tlss_load_cert_and_key_file(struct tls_state *tlss, char *cert_file, char *key_file)
+int32_t tlss_load_cert_and_key(struct tls_state *tlss, char *cert, size_t cert_size, char *key, size_t key_size)
 {
-	int32_t e = SSL_CTX_use_certificate_file(tlss->ctx, cert_file, SSL_FILETYPE_PEM);
-	if (e != 1) return UNCURL_TLS_ERR_CERT;
+	int32_t r = UNCURL_OK;
+	X509 *cert_x509 = NULL;
+	RSA *rsa = NULL;
 
-	e = SSL_CTX_use_PrivateKey_file(tlss->ctx, key_file, SSL_FILETYPE_PEM);
-	if (e != 1) return UNCURL_TLS_ERR_KEY;
+	BIO *cbio = BIO_new_mem_buf(cert, (int32_t) cert_size);
+	cert_x509 = PEM_read_bio_X509(cbio, NULL, 0, NULL);
+	if (!cert) {r = UNCURL_TLS_ERR_CERT; goto except;}
+
+	int32_t e = SSL_CTX_use_certificate(tlss->ctx, cert_x509);
+	if (e != 1) {r = UNCURL_TLS_ERR_CERT; goto except;}
+
+	BIO *kbio = BIO_new_mem_buf(key, (int32_t) key_size);
+	rsa = PEM_read_bio_RSAPrivateKey(kbio, NULL, 0, NULL);
+	if (!rsa) {r = UNCURL_TLS_ERR_KEY; goto except;}
+
+	e = SSL_CTX_use_RSAPrivateKey(tlss->ctx, rsa);
+	if (e != 1) {r = UNCURL_TLS_ERR_KEY; goto except;}
 
 	e = SSL_CTX_check_private_key(tlss->ctx);
 	if (e != 1) return UNCURL_TLS_ERR_KEY;
 
-	return UNCURL_OK;
+	except:
+
+	if (cert_x509)
+		X509_free(cert_x509);
+
+	if (rsa)
+		RSA_free(rsa);
+
+	return r;
 }
 
 void tlss_free(struct tls_state *tlss)

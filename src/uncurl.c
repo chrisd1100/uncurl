@@ -89,9 +89,10 @@ UNCURL_EXPORT int32_t uncurl_set_cacert_file(struct uncurl_tls_ctx *uc_tls, char
 	return tlss_load_cacert_file(uc_tls->tlss, cacert_file);
 }
 
-UNCURL_EXPORT int32_t uncurl_set_cert_and_key_file(struct uncurl_tls_ctx *uc_tls, char *cert_file, char *key_file)
+UNCURL_EXPORT int32_t uncurl_set_cert_and_key(struct uncurl_tls_ctx *uc_tls,
+	char *cert, size_t cert_size, char *key, size_t key_size)
 {
-	return tlss_load_cert_and_key_file(uc_tls->tlss, cert_file, key_file);
+	return tlss_load_cert_and_key(uc_tls->tlss, cert, cert_size, key, key_size);
 }
 
 
@@ -99,7 +100,7 @@ UNCURL_EXPORT int32_t uncurl_set_cert_and_key_file(struct uncurl_tls_ctx *uc_tls
 
 static void uncurl_default_opts(struct uncurl_opts *opts)
 {
-	opts->max_header = 1024;
+	opts->max_header = 2 * 1024 * 1024;
 	opts->max_body = 128 * 1024 * 1024;
 }
 
