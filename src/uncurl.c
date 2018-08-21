@@ -268,6 +268,10 @@ UNCURL_EXPORT void uncurl_set_option(struct uncurl_conn *ucc, int32_t opt, int32
 		case UNCURL_TOPT_VERIFY_HOST:
 			ucc->topts.verify_host = val; break;
 	}
+
+	//on the fly net options
+	if (ucc->net)
+		net_set_otf_opts(ucc->net, &ucc->nopts);
 }
 
 

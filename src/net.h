@@ -28,6 +28,7 @@ int32_t net_bad_fd();
 
 void net_close(struct net_context *nc);
 void net_default_opts(struct net_opts *opts);
+void net_set_otf_opts(struct net_context *nc, struct net_opts *opts);
 int32_t net_poll(struct net_context *nc, int32_t net_event, int32_t timeout_ms);
 int32_t net_getip4(char *host, char *ip4, uint32_t ip4_len);
 int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct net_opts *opts);

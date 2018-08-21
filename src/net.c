@@ -117,6 +117,13 @@ void net_default_opts(struct net_opts *opts)
 	opts->reuseaddr = 1;
 }
 
+void net_set_otf_opts(struct net_context *nc, struct net_opts *opts)
+{
+	nc->opts.read_timeout = opts->read_timeout;
+	nc->opts.connect_timeout = opts->connect_timeout;
+	nc->opts.accept_timeout = opts->accept_timeout;
+}
+
 int32_t net_poll(struct net_context *nc, int32_t net_event, int32_t timeout_ms)
 {
 	struct pollfd fd;
