@@ -492,7 +492,7 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, cha
 	return r;
 }
 
-UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc, char **origins, int32_t n_origins)
+UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc, char **origins, int32_t n_origins, bool secure)
 {
 	//wait for the client's request header
 	int32_t e = uncurl_read_header(ucc);
@@ -506,6 +506,12 @@ UNCURL_EXPORT int32_t uncurl_ws_accept(struct uncurl_conn *ucc, char **origins, 
 	char *origin = NULL;
 	e = uncurl_get_header_str(ucc, "Origin", &origin);
 	if (e != UNCURL_OK) return e;
+
+	//secure origin check
+	if (secure) {
+		char *scheme = strstr(origin, "https://");
+		if (scheme != origin) return UNCURL_WS_ERR_ORIGIN;
+	}
 
 	//the substring MUST came at the end of the origin header, thus a strstr AND a strcmp
 	bool origin_ok = false;
