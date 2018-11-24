@@ -2,6 +2,7 @@
 #define __NET_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 enum net_events {
 	NET_POLLIN  = 0,
