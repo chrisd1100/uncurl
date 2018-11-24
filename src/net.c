@@ -35,12 +35,7 @@
 	typedef int32_t SOCKET;
 #endif
 
-#define net_set_sockopt(s, level, opt_name, opt) \
-	setsockopt(s, level, opt_name, (const char *) &opt, sizeof(opt))
-
 struct net_context {
-	struct net_opts opts;
-	struct sockaddr_in addr;
 	SOCKET s;
 };
 
@@ -64,22 +59,22 @@ static int32_t net_get_error(SOCKET s)
 	return e ? e : opt;
 }
 
-int32_t net_error()
+int32_t net_error(void)
 {
 	return socket_error();
 }
 
-int32_t net_would_block()
+int32_t net_would_block(void)
 {
 	return SOCKET_WOULD_BLOCK;
 }
 
-int32_t net_in_progress()
+int32_t net_in_progress(void)
 {
 	return SOCKET_IN_PROGRESS;
 }
 
-int32_t net_bad_fd()
+int32_t net_bad_fd(void)
 {
 	return SOCKET_BAD_FD;
 }
@@ -96,32 +91,18 @@ void net_close(struct net_context *nc)
 	free(nc);
 }
 
-static void net_set_options(SOCKET s, struct net_opts *opts)
+static void net_set_sockopt(SOCKET s, int32_t level, int32_t opt_name, int32_t val)
 {
-	net_set_sockopt(s, SOL_SOCKET, SO_RCVBUF, opts->read_buf);
-	net_set_sockopt(s, SOL_SOCKET, SO_SNDBUF, opts->write_buf);
-	net_set_sockopt(s, SOL_SOCKET, SO_KEEPALIVE, opts->keepalive);
-	net_set_sockopt(s, IPPROTO_TCP, TCP_NODELAY, opts->tcp_nodelay);
-	net_set_sockopt(s, SOL_SOCKET, SO_REUSEADDR, opts->reuseaddr);
+	setsockopt(s, level, opt_name, (const char *) &val, sizeof(int32_t));
 }
 
-void net_default_opts(struct net_opts *opts)
+static void net_set_options(SOCKET s)
 {
-	opts->read_timeout = 5000;
-	opts->connect_timeout = 5000;
-	opts->accept_timeout = 5000;
-	opts->read_buf = 64 * 1024;
-	opts->write_buf = 64 * 1024;
-	opts->keepalive = 1;
-	opts->tcp_nodelay = 1;
-	opts->reuseaddr = 1;
-}
-
-void net_set_otf_opts(struct net_context *nc, struct net_opts *opts)
-{
-	nc->opts.read_timeout = opts->read_timeout;
-	nc->opts.connect_timeout = opts->connect_timeout;
-	nc->opts.accept_timeout = opts->accept_timeout;
+	net_set_sockopt(s, SOL_SOCKET, SO_RCVBUF, 64 * 1024);
+	net_set_sockopt(s, SOL_SOCKET, SO_SNDBUF, 64 * 1024);
+	net_set_sockopt(s, SOL_SOCKET, SO_KEEPALIVE, 1);
+	net_set_sockopt(s, IPPROTO_TCP, TCP_NODELAY, 1);
+	net_set_sockopt(s, SOL_SOCKET, SO_REUSEADDR, 1);
 }
 
 int32_t net_poll(struct net_context *nc, int32_t net_event, int32_t timeout_ms)
@@ -165,94 +146,74 @@ int32_t net_getip4(char *host, char *ip4, uint32_t ip4_len)
 	return r;
 }
 
-static int32_t net_setup(struct net_context *nc, char *ip4, uint16_t port, struct net_opts *opts)
+static int32_t net_setup(struct net_context *nc, char *ip4, uint16_t port, struct sockaddr_in *addr)
 {
-	//set options
-	memcpy(&nc->opts, opts, sizeof(struct net_opts));
-
 	nc->s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (nc->s == INVALID_SOCKET) return UNCURL_NET_ERR_SOCKET;
-
-	//set options
-	net_set_options(nc->s, &nc->opts);
 
 	//put socket in nonblocking mode, allows us to implement connection timeout
 	int32_t e = net_set_nonblocking(nc->s);
 	if (e != 0) return UNCURL_NET_ERR_BLOCKMODE;
 
-	memset(&nc->addr, 0, sizeof(struct sockaddr_in));
-	nc->addr.sin_family = AF_INET;
-	nc->addr.sin_port = htons(port);
+	net_set_options(nc->s);
+
+	memset(addr, 0, sizeof(struct sockaddr_in));
+	addr->sin_family = AF_INET;
+	addr->sin_port = htons(port);
 
 	if (ip4) {
-		inet_pton(AF_INET, ip4, &nc->addr.sin_addr);
+		inet_pton(AF_INET, ip4, &addr->sin_addr);
 	} else {
-		nc->addr.sin_addr.s_addr = INADDR_ANY;
+		addr->sin_addr.s_addr = INADDR_ANY;
 	}
 
 	return UNCURL_OK;
 }
 
-int32_t net_connect(struct net_context **nc_in, char *ip4, uint16_t port, struct net_opts *opts)
+int32_t net_connect(struct net_context **nc_out, char *ip4, uint16_t port, int32_t timeout_ms)
 {
-	int32_t r = UNCURL_ERR_DEFAULT;
+	int32_t r = UNCURL_OK;
 
-	int32_t timeout_rem = opts->connect_timeout;
-	int32_t interval = 5000;
-	int32_t this_try = interval;
+	struct net_context *nc = *nc_out = calloc(1, sizeof(struct net_context));
 
-	do {
-		int8_t do_wait = 0;
-		struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
+	struct sockaddr_in addr;
+	int32_t e = net_setup(nc, ip4, port, &addr);
+	if (e != UNCURL_OK) {r = e; goto except;}
 
-		int32_t e = net_setup(nc, ip4, port, opts);
-		if (e != UNCURL_OK) {r = e; do_wait = 1; goto except;}
+	//initiate the socket connection
+	e = connect(nc->s, (struct sockaddr *) &addr, sizeof(struct sockaddr_in));
 
-		//initiate the socket connection
-		e = connect(nc->s, (struct sockaddr *) &nc->addr, sizeof(struct sockaddr_in));
+	//initial socket state must be 'in progress' for nonblocking connect
+	if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; goto except;}
 
-		//initial socket state must be 'in progress' for nonblocking connect
-		if (net_error() != net_in_progress()) {r = UNCURL_NET_ERR_CONNECT; do_wait = 1; goto except;}
+	//wait for socket to be ready to write
+	e = net_poll(nc, NET_POLLOUT, timeout_ms);
+	if (e != UNCURL_OK) {r = e; goto except;}
 
-		//wait for socket to be ready to write
-		e = net_poll(nc, NET_POLLOUT, this_try);
-		if (e == UNCURL_NET_ERR_TIMEOUT) {r = e; timeout_rem -= this_try; goto except;}
-		if (e != UNCURL_OK) {r = e; do_wait = 1; goto except;}
+	//if the socket is clear of errors, we made a successful connection
+	if (net_get_error(nc->s) != 0) {r = UNCURL_NET_ERR_CONNECT_FINAL; goto except;}
 
-		//if the socket is clear of errors, we made a successful connection
-		if (net_get_error(nc->s) != 0) {r = UNCURL_NET_ERR_CONNECT_FINAL; do_wait = 1; goto except;}
+	except:
 
-		//success
-		return UNCURL_OK;
-
-		except:
-
+	if (r != UNCURL_OK) {
 		net_close(nc);
-		*nc_in = NULL;
-
-		if (do_wait) {
-			timeout_rem -= this_try - interval;
-			if (timeout_rem > 0)
-				usleep(1000 * this_try);
-		}
-
-		this_try += interval;
-
-	} while (timeout_rem > 0);
+		*nc_out = NULL;
+	}
 
 	return r;
 }
 
-int32_t net_listen(struct net_context **nc_in, char *bind_ip4, uint16_t port, struct net_opts *opts)
+int32_t net_listen(struct net_context **nc_out, char *bind_ip4, uint16_t port)
 {
 	int32_t r = UNCURL_OK;
 
-	struct net_context *nc = *nc_in = calloc(1, sizeof(struct net_context));
+	struct net_context *nc = *nc_out = calloc(1, sizeof(struct net_context));
 
-	int32_t e = net_setup(nc, bind_ip4, port, opts);
+	struct sockaddr_in addr;
+	int32_t e = net_setup(nc, bind_ip4, port, &addr);
 	if (e != UNCURL_OK) {r = e; goto except;}
 
-	e = bind(nc->s, (struct sockaddr *) &nc->addr, sizeof(struct sockaddr_in));
+	e = bind(nc->s, (struct sockaddr *) &addr, sizeof(struct sockaddr_in));
 	if (e != 0) {r = UNCURL_NET_ERR_BIND; goto except;}
 
 	e = listen(nc->s, SOMAXCONN);
@@ -262,15 +223,15 @@ int32_t net_listen(struct net_context **nc_in, char *bind_ip4, uint16_t port, st
 
 	if (r != UNCURL_OK) {
 		net_close(nc);
-		*nc_in = NULL;
+		*nc_out = NULL;
 	}
 
 	return r;
 }
 
-int32_t net_accept(struct net_context *nc, struct net_context **nc_in)
+int32_t net_accept(struct net_context *nc, struct net_context **child, int32_t timeout_ms)
 {
-	int32_t e = net_poll(nc, NET_POLLIN, nc->opts.accept_timeout);
+	int32_t e = net_poll(nc, NET_POLLIN, timeout_ms);
 
 	if (e == UNCURL_OK) {
 		SOCKET s = accept(nc->s, NULL, NULL);
@@ -279,10 +240,9 @@ int32_t net_accept(struct net_context *nc, struct net_context **nc_in)
 		e = net_set_nonblocking(s);
 		if (e != 0) return UNCURL_NET_ERR_BLOCKMODE;
 
-		net_set_options(s, &nc->opts);
+		net_set_options(s);
 
-		struct net_context *new = *nc_in = calloc(1, sizeof(struct net_context));
-		memcpy(new, nc, sizeof(struct net_context));
+		struct net_context *new = *child = calloc(1, sizeof(struct net_context));
 		new->s = s;
 
 		return UNCURL_OK;
@@ -291,47 +251,39 @@ int32_t net_accept(struct net_context *nc, struct net_context **nc_in)
 	return e;
 }
 
-int32_t net_write(void *ctx, char *buf, uint32_t buf_size)
+int32_t net_write(void *ctx, char *buf, size_t size)
 {
 	struct net_context *nc = (struct net_context *) ctx;
 
-	uint32_t total = 0;
-
-	while (total < buf_size) {
-		int32_t n = send(nc->s, buf + total, buf_size - total, 0);
+	for (size_t total = 0; total < size;) {
+		int32_t n = send(nc->s, buf + total, (int32_t) (size - total), 0);
 		if (n <= 0) return UNCURL_NET_ERR_WRITE;
+
 		total += n;
 	}
 
 	return UNCURL_OK;
 }
 
-int32_t net_read(void *ctx, char *buf, uint32_t buf_size)
+int32_t net_read(void *ctx, char *buf, size_t size, int32_t timeout_ms)
 {
 	struct net_context *nc = (struct net_context *) ctx;
 
-	uint32_t total = 0;
-
-	while (total < buf_size) {
-		int32_t e = net_poll(nc, NET_POLLIN, nc->opts.read_timeout);
+	for (size_t total = 0; total < size;) {
+		int32_t e = net_poll(nc, NET_POLLIN, timeout_ms);
 		if (e != UNCURL_OK) return e;
 
-		int32_t n = recv(nc->s, buf + total, buf_size - total, 0);
+		int32_t n = recv(nc->s, buf + total, (int32_t) (size - total), 0);
 		if (n <= 0) {
 			if (net_error() == net_would_block()) continue;
-			if (n == 0) return UNCURL_NET_ERR_CLOSED;
-			return UNCURL_NET_ERR_READ;
+
+			return (n == 0) ? UNCURL_NET_ERR_CLOSED : UNCURL_NET_ERR_READ;
 		}
 
 		total += n;
 	}
 
 	return UNCURL_OK;
-}
-
-void net_get_opts(struct net_context *nc, struct net_opts *opts)
-{
-	memcpy(opts, &nc->opts, sizeof(struct net_opts));
 }
 
 void net_get_socket(struct net_context *nc, void *socket)

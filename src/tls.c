@@ -193,7 +193,6 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 
 struct tls_context {
 	struct net_context *nc;
-	struct tls_opts opts;
 	SSL *ssl;
 };
 
@@ -215,18 +214,10 @@ void tls_close(struct tls_context *tls)
 	free(tls);
 }
 
-void tls_default_opts(struct tls_opts *opts)
-{
-	opts->verify_host = 1;
-}
-
 static int32_t tls_context_new(struct tls_context **tls_in, struct tls_state *tlss,
-	struct net_context *nc, struct tls_opts *opts)
+	struct net_context *nc)
 {
 	struct tls_context *tls = *tls_in = calloc(1, sizeof(struct tls_context));
-
-	//set options
-	memcpy(&tls->opts, opts, sizeof(struct tls_opts));
 
 	//keep handle to the underlying net_context
 	tls->nc = nc;
@@ -254,11 +245,11 @@ static int32_t tls_handshake_poll(struct tls_context *tls, int32_t e, int32_t ti
 }
 
 int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
-	struct net_context *nc, char *host, struct tls_opts *opts)
+	struct net_context *nc, char *host, bool verify_host, int32_t timeout_ms)
 {
 	int32_t r = UNCURL_OK;
 
-	int32_t e = tls_context_new(tls_in, tlss, nc, opts);
+	int32_t e = tls_context_new(tls_in, tlss, nc);
 	struct tls_context *tls = *tls_in;
 	if (e != UNCURL_OK) {r = e; goto except;}
 
@@ -267,7 +258,7 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	SSL_set_verify_depth(tls->ssl, TLS_VERIFY_DEPTH);
 
 	//set hostname validation
-	if (opts->verify_host) {
+	if (verify_host) {
 		X509_VERIFY_PARAM *param = SSL_get0_param(tls->ssl);
 		X509_VERIFY_PARAM_set_hostflags(param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
 		X509_VERIFY_PARAM_set1_host(param, host, 0);
@@ -276,17 +267,13 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 	//set hostname extension -- sometimes required
 	SSL_set_tlsext_host_name(tls->ssl, host);
 
-	//retrieve net options
-	struct net_opts nopts;
-	net_get_opts(tls->nc, &nopts);
-
 	while (1) {
 		//attempt SSL connection on nonblocking socket -- 1 is success
 		e = SSL_connect(tls->ssl);
 		if (e == 1) break;
 
 		//if not successful, see if we neeed to poll for more data
-		e = tls_handshake_poll(tls, e, nopts.connect_timeout);
+		e = tls_handshake_poll(tls, e, timeout_ms);
 		if (e != UNCURL_OK) {r = e; break;}
 	}
 
@@ -301,17 +288,13 @@ int32_t tls_connect(struct tls_context **tls_in, struct tls_state *tlss,
 }
 
 int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
-	struct net_context *nc, struct tls_opts *opts)
+	struct net_context *nc, int32_t timeout_ms)
 {
 	int32_t r = UNCURL_OK;
 
-	int32_t e = tls_context_new(tls_in, tlss, nc, opts);
+	int32_t e = tls_context_new(tls_in, tlss, nc);
 	struct tls_context *tls = *tls_in;
 	if (e != UNCURL_OK) {r = e; goto except;}
-
-	//retrieve net options
-	struct net_opts nopts;
-	net_get_opts(tls->nc, &nopts);
 
 	while (1) {
 		//attempt SSL accept on nonblocking socket -- 1 is success
@@ -319,7 +302,7 @@ int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
 		if (e == 1) break;
 
 		//if not successful, see if we neeed to poll for more data
-		e = tls_handshake_poll(tls, e, nopts.accept_timeout);
+		e = tls_handshake_poll(tls, e, timeout_ms);
 		if (e != UNCURL_OK) {r = e; break;}
 	}
 
@@ -333,14 +316,12 @@ int32_t tls_accept(struct tls_context **tls_in, struct tls_state *tlss,
 	return r;
 }
 
-int32_t tls_write(void *ctx, char *buf, uint32_t buf_size)
+int32_t tls_write(void *ctx, char *buf, size_t size)
 {
 	struct tls_context *tls = (struct tls_context *) ctx;
 
-	uint32_t total = 0;
-
-	while (total < buf_size) {
-		int32_t n = SSL_write(tls->ssl, buf + total, buf_size - total);
+	for (size_t total = 0; total < size;) {
+		int32_t n = SSL_write(tls->ssl, buf + total, (int32_t) (size - total));
 		if (n <= 0) {
 			int32_t ssl_e = SSL_get_error(tls->ssl, n);
 			if (ssl_e == SSL_ERROR_WANT_READ || ssl_e == SSL_ERROR_WANT_WRITE) continue;
@@ -354,23 +335,17 @@ int32_t tls_write(void *ctx, char *buf, uint32_t buf_size)
 	return UNCURL_OK;
 }
 
-int32_t tls_read(void *ctx, char *buf, uint32_t buf_size)
+int32_t tls_read(void *ctx, char *buf, size_t size, int32_t timeout_ms)
 {
 	struct tls_context *tls = (struct tls_context *) ctx;
 
-	//retrieve net options
-	struct net_opts nopts;
-	net_get_opts(tls->nc, &nopts);
-
-	uint32_t total = 0;
-
-	while (total < buf_size) {
+	for (size_t total = 0; total < size;) {
 		if (SSL_has_pending(tls->ssl) == 0) {
-			int32_t e = net_poll(tls->nc, NET_POLLIN, nopts.read_timeout);
+			int32_t e = net_poll(tls->nc, NET_POLLIN, timeout_ms);
 			if (e != UNCURL_OK) return e;
 		}
 
-		int32_t n = SSL_read(tls->ssl, buf + total, buf_size - total);
+		int32_t n = SSL_read(tls->ssl, buf + total, (int32_t) (size - total));
 		if (n <= 0) {
 			int32_t ssl_e = SSL_get_error(tls->ssl, n);
 			if (ssl_e == SSL_ERROR_WANT_READ || ssl_e == SSL_ERROR_WANT_WRITE) continue;
