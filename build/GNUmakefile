@@ -1,6 +1,9 @@
 CORES = $(shell getconf _NPROCESSORS_ONLN)
-UNAME = $(shell uname -s)
 ARCH = $(shell uname -m)
+
+ifndef UNAME
+UNAME = $(shell uname -s)
+endif
 
 LIB_NAME = libuncurl
 BIN_NAME = example
@@ -55,9 +58,46 @@ ifeq ($(UNAME), Darwin)
 
 export MACOSX_DEPLOYMENT_TARGET=10.9
 
-FLAGS := $(FLAGS) -D__MACOS__
+FLAGS := $(FLAGS) -D__APPLE__
 PLATFORM = macos
 SHARED_SUFFIX = dylib
+
+endif
+
+ifeq ($(UNAME), IOS)
+
+IOS = 1
+SDK_ROOT = $(shell xcrun --sdk iphoneos --show-sdk-path)
+
+ARCHS = \
+	-arch armv7 \
+	-arch armv7s \
+	-arch arm64
+
+endif
+
+ifeq ($(UNAME), IOSS)
+
+IOS = 1
+SDK_ROOT = $(shell xcrun --sdk iphonesimulator --show-sdk-path)
+
+ARCHS = \
+	-arch i386 \
+	-arch x86_64
+
+endif
+
+ifdef IOS
+
+FLAGS := $(FLAGS) \
+	-D__APPLE__ \
+	-fembed-bitcode \
+	-fobjc-abi-version=2 \
+	-isysroot $(SDK_ROOT) \
+	$(ARCHS)
+
+POST_LIB = \
+	ranlib $(LIB_NAME).a
 
 endif
 
@@ -71,6 +111,7 @@ CFLAGS = $(INCLUDES) $(DEFS) $(FLAGS) -std=c99
 
 all: clean clear
 	make -j$(CORES) lib
+	$(POST_LIB)
 
 clean:
 	rm -f $(OBJS) $(EXAMPLE_OBJ)

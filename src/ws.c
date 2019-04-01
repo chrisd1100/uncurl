@@ -10,7 +10,7 @@
 #if defined(__WINDOWS__)
 	#include <winsock2.h>
 
-#elif !defined(__MACOS__) && defined(__UNIXY__)
+#elif !defined(__APPLE__) && defined(__UNIXY__)
 	#include <arpa/inet.h>
 	#include <endian.h>
 	#define ntohll be64toh
