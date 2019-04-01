@@ -82,7 +82,6 @@ IOS = 1
 SDK_ROOT = $(shell xcrun --sdk iphonesimulator --show-sdk-path)
 
 ARCHS = \
-	-arch i386 \
 	-arch x86_64
 
 endif
@@ -91,6 +90,7 @@ ifdef IOS
 
 FLAGS := $(FLAGS) \
 	-D__APPLE__ \
+	-miphoneos-version-min=8.0 \
 	-fembed-bitcode \
 	-fobjc-abi-version=2 \
 	-isysroot $(SDK_ROOT) \
