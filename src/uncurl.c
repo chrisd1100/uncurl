@@ -386,9 +386,11 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 
 /*** WEBSOCKETS ***/
 
-UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin, int32_t timeout_ms)
+UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin,
+	int32_t timeout_ms, int32_t *upgrade_status)
 {
 	int32_t r = UNCURL_OK;
+	*upgrade_status = 0;
 
 	//obligatory websocket headers
 	char *sec_key = ws_create_key(&ucc->seed);
@@ -410,10 +412,9 @@ UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, cha
 	if (e != UNCURL_OK) {r = e; goto except;}
 
 	//make sure we have a 101 from the server
-	int32_t status_code = 0;
-	e = uncurl_get_status_code(ucc, &status_code);
+	e = uncurl_get_status_code(ucc, upgrade_status);
 	if (e != UNCURL_OK) {r = e; goto except;}
-	if (status_code != 101) {r = UNCURL_WS_ERR_STATUS; goto except;}
+	if (*upgrade_status != 101) {r = UNCURL_WS_ERR_STATUS; goto except;}
 
 	//validate the security key response
 	char *server_sec_key = NULL;
