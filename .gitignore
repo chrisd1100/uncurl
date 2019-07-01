@@ -1,6 +1,7 @@
 src/*.o
 example/*.o
 build/*.obj
+build/obj
 build/example.exe
 build/example
 build/libuncurl.a
