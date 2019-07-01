@@ -20,6 +20,6 @@ LOCAL_SRC_FILES := \
 	$(SOURCE_PATH)/net.c \
 	$(SOURCE_PATH)/http.c \
 	$(SOURCE_PATH)/tls.c \
-	$(SOURCE_PATH)/ws.c \
+	$(SOURCE_PATH)/ws.c
 
 include $(BUILD_STATIC_LIBRARY)
