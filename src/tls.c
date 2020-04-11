@@ -7,7 +7,7 @@
 #include "openssl/x509v3.h"
 #include "openssl/rsa.h"
 
-#include "uncurl/status.h"
+#include "uncurl/uncurl.h"
 
 #define TLS_VERIFY_DEPTH 4
 

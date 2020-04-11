@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "uncurl/status.h"
+#include "uncurl/uncurl.h"
 
 #if defined(__WINDOWS__)
 	#include <winsock2.h>
