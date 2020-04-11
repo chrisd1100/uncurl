@@ -4,6 +4,8 @@ build/*.obj
 build/obj
 build/example.exe
 build/example
+build/ws-example.exe
+build/ws-example
 build/libuncurl.a
 build/libuncurl.dylib
 build/libuncurl.so

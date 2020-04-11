@@ -7,6 +7,7 @@ PLATFORM = windows32
 
 LIB_NAME = libuncurl
 BIN_NAME = example
+BIN_NAME_WS = ws-example
 
 OBJS = \
 	../src/uncurl.obj \
@@ -87,9 +88,15 @@ EXAMPLE_LIBS = \
 	$(SYS_LIBS)
 !endif
 
-example: lib ../example/example-ws.obj
+example: lib ../example/example-ws.obj ../example/example.obj
 	link \
 	/out:$(BIN_NAME).exe \
+	$(LD_FLAGS) \
+	example.obj \
+	$(LIB_NAME).lib \
+	$(EXAMPLE_LIBS)
+	link \
+	/out:$(BIN_NAME_WS).exe \
 	$(LD_FLAGS) \
 	example-ws.obj \
 	$(LIB_NAME).lib \
@@ -98,6 +105,7 @@ example: lib ../example/example-ws.obj
 clean:
 	del *.obj
 	del $(BIN_NAME).exe
+	del $(BIN_NAME_WS).exe
 	del $(LIB_NAME).lib
 	del $(LIB_NAME).dll
 	del $(LIB_NAME).exp
