@@ -113,23 +113,49 @@ static void uncurl_attach_tls(struct uncurl_conn *ucc)
 }
 
 UNCURL_EXPORT int32_t uncurl_connect(struct uncurl_tls_ctx *uc_tls, struct uncurl_conn *ucc,
-	int32_t scheme, char *host, uint16_t port, bool verify_host, int32_t timeout_ms)
+	int32_t scheme, char *host, uint16_t port, bool verify_host, char *proxy_host,
+	uint16_t proxy_port, int32_t timeout_ms)
 {
 	//set state
 	ucc->host = strdup(host);
 	ucc->port = port;
 
+	//connect via proxy if specified
+	bool use_proxy = proxy_host && proxy_host[0] && proxy_port > 0;
+	char *use_host = use_proxy ? proxy_host : host;
+	uint16_t use_port = use_proxy ? proxy_port : port;
+
 	//resolve the hostname into an ip4 address
 	char ip4[LEN_IP4];
-	int32_t e = net_getip4(ucc->host, ip4, LEN_IP4);
+	int32_t e = net_getip4(use_host, ip4, LEN_IP4);
 	if (e != UNCURL_OK) return e;
 
 	//make the net connection
-	e = net_connect(&ucc->net, ip4, ucc->port, timeout_ms);
+	e = net_connect(&ucc->net, ip4, use_port, timeout_ms);
 	if (e != UNCURL_OK) return e;
 
 	//default read/write callbacks
 	uncurl_attach_net(ucc);
+
+	//proxy CONNECT request
+	if (use_proxy) {
+		char *h = http_connect(ucc->host, ucc->port, NULL);
+
+		//write the header to the HTTP client/server
+		e = ucc->write(ucc->ctx, h, (uint32_t) strlen(h));
+		free(h);
+		if (e != UNCURL_OK) return e;
+
+		//read the response header
+		e = uncurl_read_header(ucc, timeout_ms);
+		if (e != UNCURL_OK) return e;
+
+		//get the status code
+		int32_t status_code = -1;
+		e = uncurl_get_status_code(ucc, &status_code);
+		if (e != UNCURL_OK) return e;
+		if (status_code != 200) return UNCURL_ERR_PROXY;
+	}
 
 	if (scheme == UNCURL_HTTPS || scheme == UNCURL_WSS) {
 		if (!uc_tls) return UNCURL_TLS_ERR_CONTEXT;

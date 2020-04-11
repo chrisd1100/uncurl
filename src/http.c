@@ -5,8 +5,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "uncurl/status.h"
-#include "uncurl/const.h"
+#include "uncurl/uncurl.h"
 
 #if defined(__WINDOWS__)
 	#define strtok_r(a, b, c) strtok_s(a, b, c)
@@ -30,6 +29,11 @@ static const char HTTP_REQUEST_FMT[] =
 	"%s"
 	"\r\n";
 
+static const char HTTP_CONNECT_FMT[] =
+	"CONNECT %s:%u HTTP/1.1\r\n"
+	"%s"
+	"\r\n";
+
 static const char HTTP_RESPONSE_FMT[] =
 	"HTTP/1.1 %s %s\r\n"
 	"%s"
@@ -44,6 +48,18 @@ char *http_request(char *method, char *host, char *path, char *fields)
 	char *final = malloc(len);
 
 	snprintf(final, len, HTTP_REQUEST_FMT, method, path, host, fields);
+
+	return final;
+}
+
+char *http_connect(char *host, uint16_t port, char *fields)
+{
+	if (!fields) fields = "";
+
+	size_t len = sizeof(HTTP_CONNECT_FMT) + strlen(host) + 32 + strlen(fields) + 1;
+	char *final = malloc(len);
+
+	snprintf(final, len, HTTP_CONNECT_FMT, host, port, fields);
 
 	return final;
 }
