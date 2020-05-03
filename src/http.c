@@ -240,22 +240,30 @@ int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *por
 	*port = 0;
 
 	//scheme
-	tok = strtok_r(url, ":", &ptr);
-	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto except;}
-	http_lc(tok);
-	if (!strcmp(tok, "https")) {
-		*scheme = UNCURL_HTTPS;
-	} else if (!strcmp(tok, "http")) {
-		*scheme = UNCURL_HTTP;
-	} else if (!strcmp(tok, "ws")) {
-		*scheme = UNCURL_WS;
-	} else if (!strcmp(tok, "wss")) {
-		*scheme = UNCURL_WSS;
-	} else {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto except;}
+	if (strstr(url, "http") || strstr(url, "ws")) {
+		tok = strtok_r(url, ":", &ptr);
+		if (!tok) {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto except;}
 
-	//host + port
-	tok = strtok_r(NULL, "/", &ptr);
-	if (!tok) {r = UNCURL_HTTP_ERR_PARSE_HOST; goto except;}
+		http_lc(tok);
+		if (!strcmp(tok, "https")) {
+			*scheme = UNCURL_HTTPS;
+		} else if (!strcmp(tok, "http")) {
+			*scheme = UNCURL_HTTP;
+		} else if (!strcmp(tok, "ws")) {
+			*scheme = UNCURL_WS;
+		} else if (!strcmp(tok, "wss")) {
+			*scheme = UNCURL_WSS;
+		} else {r = UNCURL_HTTP_ERR_PARSE_SCHEME; goto except;}
+
+		//host + port
+		tok = strtok_r(NULL, "/", &ptr);
+		if (!tok) {r = UNCURL_HTTP_ERR_PARSE_HOST; goto except;}
+
+	//no scheme, assume host:port/path syntax
+	} else {
+		*scheme = UNCURL_HTTP;
+		tok = strtok_r(url, "/", &ptr);
+	}
 
 	//try to find a port
 	*host = strdup(tok);
