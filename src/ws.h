@@ -1,5 +1,10 @@
-#ifndef __WS_H
-#define __WS_H
+// Copyright (c) 2017-2020 Christopher D. Dickson <cdd@matoya.group>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+#pragma once
 
 #include <stdint.h>
 
@@ -25,5 +30,3 @@ void ws_parse_header0(struct ws_header *h, char *buf);
 void ws_parse_header1(struct ws_header *h, char *buf);
 void ws_mask(char *out, char *in, uint64_t buf_len, uint32_t mask);
 void ws_serialize(struct ws_header *h, uint32_t *seed, char *payload, char *out, uint64_t *out_size);
-
-#endif

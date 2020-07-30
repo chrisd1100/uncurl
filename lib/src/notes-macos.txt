@@ -1,7 +1,0 @@
-export MACOSX_DEPLOYMENT_TARGET=10.9
-
-OPENSSL
---------
-./Configure --prefix=$HOME/install --api=1.1.0 no-dso no-engine darwin64-x86_64-cc -fPIC
-make
-make install

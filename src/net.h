@@ -1,5 +1,10 @@
-#ifndef __NET_H
-#define __NET_H
+// Copyright (c) 2017-2020 Christopher D. Dickson <cdd@matoya.group>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+#pragma once
 
 #include <stdint.h>
 #include <stddef.h>
@@ -26,5 +31,3 @@ void net_get_socket(struct net_context *nc, void *socket);
 
 int32_t net_write(void *ctx, char *buf, size_t size);
 int32_t net_read(void *ctx, char *buf, size_t size, int32_t timeout_ms);
-
-#endif

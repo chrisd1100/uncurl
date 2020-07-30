@@ -1,5 +1,10 @@
-#ifndef __HTTP_H
-#define __HTTP_H
+// Copyright (c) 2017-2020 Christopher D. Dickson <cdd@matoya.group>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+#pragma once
 
 #include <stdint.h>
 
@@ -20,5 +25,3 @@ int32_t http_get_header(struct http_header *h, char *key, int32_t *val_int, char
 int32_t http_get_status_code(struct http_header *h, int32_t *status_code);
 char *http_set_header(char *header, char *name, int32_t type, void *value);
 int32_t http_parse_url(char *url_in, int32_t *scheme, char **host, uint16_t *port, char **path);
-
-#endif
