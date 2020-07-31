@@ -38,7 +38,6 @@
 	"DHE-RSA-AES256-SHA256"
 
 
-
 // State
 
 struct tls_state {
@@ -194,7 +193,6 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 
 	return r;
 }
-
 
 
 // Context

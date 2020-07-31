@@ -19,7 +19,6 @@ extern "C" {
 #endif
 
 
-
 #define UNCURL_PORT    80
 #define UNCURL_PORT_S  443
 
@@ -111,7 +110,6 @@ enum ws_status_code {
 };
 
 
-
 // TLS Context
 
 struct uncurl_tls_ctx;
@@ -131,7 +129,6 @@ uncurl_set_cacert_file(struct uncurl_tls_ctx *uc_tls, char *cacert_file);
 UNCURL_EXPORT int32_t
 uncurl_set_cert_and_key(struct uncurl_tls_ctx *uc_tls, char *cert,
 	size_t cert_size, char *key, size_t key_size);
-
 
 
 // Connection
@@ -163,7 +160,6 @@ UNCURL_EXPORT void
 uncurl_get_socket(struct uncurl_conn *ucc, void *socket);
 
 
-
 // Request
 
 UNCURL_EXPORT void
@@ -180,7 +176,6 @@ uncurl_write_header(struct uncurl_conn *ucc, char *str0, char *str1, int32_t typ
 
 UNCURL_EXPORT int32_t
 uncurl_write_body(struct uncurl_conn *ucc, char *body, uint32_t body_len);
-
 
 
 // Response
@@ -205,7 +200,6 @@ UNCURL_EXPORT int32_t
 uncurl_get_header(struct uncurl_conn *ucc, char *key, int32_t *val_int, char **val_str);
 
 
-
 // Websockets
 
 UNCURL_EXPORT int32_t
@@ -226,7 +220,6 @@ UNCURL_EXPORT int32_t
 uncurl_ws_close(struct uncurl_conn *ucc, uint16_t status_code);
 
 
-
 // Helpers
 
 struct uncurl_info {
@@ -241,7 +234,6 @@ uncurl_parse_url(char *url, struct uncurl_info *uci);
 
 UNCURL_EXPORT void
 uncurl_free_info(struct uncurl_info *uci);
-
 
 
 #ifdef __cplusplus
