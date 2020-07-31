@@ -53,7 +53,8 @@ struct uncurl_conn {
 };
 
 
-/*** TLS CONTEXT ***/
+
+// TLS Context
 
 UNCURL_EXPORT void uncurl_free_tls_ctx(struct uncurl_tls_ctx *uc_tls)
 {
@@ -94,7 +95,8 @@ UNCURL_EXPORT int32_t uncurl_set_cert_and_key(struct uncurl_tls_ctx *uc_tls,
 }
 
 
-/*** CONNECTION ***/
+
+// Connection
 
 UNCURL_EXPORT struct uncurl_conn *uncurl_new_conn(void)
 {
@@ -244,7 +246,8 @@ UNCURL_EXPORT void uncurl_close(struct uncurl_conn *ucc)
 }
 
 
-/*** REQUEST ***/
+
+// Request
 
 UNCURL_EXPORT void uncurl_set_header_str(struct uncurl_conn *ucc, char *name, char *value)
 {
@@ -283,7 +286,8 @@ UNCURL_EXPORT int32_t uncurl_write_body(struct uncurl_conn *ucc, char *body, uin
 }
 
 
-/*** RESPONSE ***/
+
+// Response
 
 static int32_t uncurl_read_header_(struct uncurl_conn *ucc, char **header, int32_t timeout_ms)
 {
@@ -416,7 +420,8 @@ UNCURL_EXPORT int32_t uncurl_read_body_all(struct uncurl_conn *ucc, char **body,
 }
 
 
-/*** WEBSOCKETS ***/
+
+// Websockets
 
 UNCURL_EXPORT int32_t uncurl_ws_connect(struct uncurl_conn *ucc, char *path, char *origin,
 	int32_t timeout_ms, int32_t *upgrade_status)
@@ -577,7 +582,8 @@ UNCURL_EXPORT int32_t uncurl_ws_close(struct uncurl_conn *ucc, uint16_t status_c
 }
 
 
-/*** HELPERS ***/
+
+// Helpers
 
 UNCURL_EXPORT int32_t uncurl_get_status_code(struct uncurl_conn *ucc, int32_t *status_code)
 {

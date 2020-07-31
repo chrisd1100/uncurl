@@ -38,7 +38,8 @@
 	"DHE-RSA-AES256-SHA256"
 
 
-/*** STATE ***/
+
+// State
 
 struct tls_state {
 	SSL_CTX *ctx;
@@ -195,7 +196,8 @@ int32_t tlss_alloc(struct tls_state **tlss_in)
 }
 
 
-/*** CONTEXT ***/
+
+// Context
 
 struct tls_context {
 	struct net_context *nc;
