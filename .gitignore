@@ -2,4 +2,6 @@
 *.obj
 /libuncurl.a
 /libuncurl.lib
+
 /obj
+/bin

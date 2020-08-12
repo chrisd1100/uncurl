@@ -11,7 +11,7 @@
 
 #include "uncurl.h"
 
-#if defined(__WINDOWS__)
+#if defined(_WIN32)
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
 	#define SHUT_RDWR 2
@@ -23,7 +23,7 @@
 	#define SOCKET_BAD_FD WSAENOTSOCK
 	typedef int32_t socklen_t;
 
-#elif defined(__UNIXY__)
+#else
 	#include <fcntl.h>
 	#include <unistd.h>
 	#include <sys/socket.h>
@@ -47,11 +47,11 @@ struct net_context {
 
 static int32_t net_set_nonblocking(SOCKET s)
 {
-	#if defined(__WINDOWS__)
+	#if defined(_WIN32)
 		u_long mode = 1;
 		return ioctlsocket(s, FIONBIO, &mode);
 
-	#elif defined(__UNIXY__)
+	#else
 		return fcntl(s, F_SETFL, O_NONBLOCK);
 	#endif
 }

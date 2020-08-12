@@ -13,10 +13,10 @@
 
 #include "tls.h"
 
-#if defined(__WINDOWS__)
+#if defined(_WIN32)
 	#include <winsock2.h>
 
-#elif !defined(__APPLE__) && defined(__UNIXY__)
+#else
 	#include <arpa/inet.h>
 	#include <endian.h>
 	#define ntohll be64toh

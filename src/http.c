@@ -13,7 +13,7 @@
 
 #include "uncurl.h"
 
-#if defined(__WINDOWS__)
+#if defined(_WIN32)
 	#define strtok_r(a, b, c) strtok_s(a, b, c)
 	#define strdup(a) _strdup(a)
 #endif

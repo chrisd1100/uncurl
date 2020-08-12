@@ -16,7 +16,7 @@
 #include "http.h"
 #include "ws.h"
 
-#if defined(__WINDOWS__)
+#if defined(_WIN32)
 	#include <winsock2.h>
 	#define strdup(a) _strdup(a)
 #else
