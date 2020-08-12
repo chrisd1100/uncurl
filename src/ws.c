@@ -5,6 +5,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #define _DARWIN_C_SOURCE // ntohll, htonll
+#define _BSD_SOURCE // be64toh, htobe64
 
 #include "ws.h"
 
