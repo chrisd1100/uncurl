@@ -1,4 +1,4 @@
-OS = windows
+TARGET = windows
 ARCH = %%Platform%%
 NAME = uncurl
 PREFIX = uc
@@ -50,8 +50,8 @@ FLAGS = $(FLAGS) /O2 /Gy /GS- /Gw
 CFLAGS = $(INCLUDES) $(DEFS) $(FLAGS)
 
 all: clean clear $(OBJS)
-	mkdir bin\$(OS)\$(ARCH)
-	lib /out:bin\$(OS)\$(ARCH)\$(NAME).lib $(LIB_FLAGS) *.obj
+	mkdir bin\$(TARGET)\$(ARCH)
+	lib /out:bin\$(TARGET)\$(ARCH)\$(NAME).lib $(LIB_FLAGS) *.obj
 
 test: all src\test.obj
 	link /out:$(PREFIX)-test.exe $(TEST_FLAGS) *.obj $(TEST_LIBS)
