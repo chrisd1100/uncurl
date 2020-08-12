@@ -18,8 +18,7 @@ INCLUDES = \
 	-Iinclude
 
 DEFS = \
-	-D_POSIX_C_SOURCE=200112L \
-	-D_GNU_SOURCE
+	-D_POSIX_C_SOURCE=200112L
 
 FLAGS = \
 	-Wall \

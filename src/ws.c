@@ -4,6 +4,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#define _DARWIN_C_SOURCE // ntohll, htonll
+
 #include "ws.h"
 
 #include <stdlib.h>
@@ -16,7 +18,7 @@
 #if defined(_WIN32)
 	#include <winsock2.h>
 
-#else
+#elif !defined(__APPLE__)
 	#include <arpa/inet.h>
 	#include <endian.h>
 	#define ntohll be64toh
