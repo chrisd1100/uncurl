@@ -1,3 +1,1 @@
-## Overview
-
-`uncurl` is a simple HTTP client/server library that depends on OpenSSL and common system libraries. It can easily be built via `make` or `nmake` (on Windows) as a static library. The only public header is [`src/uncurl.h`](/src/uncurl.h).
+`uncurl` has been replaced with the [/net](https://github.com/matoya/libmatoya/tree/master/src/net) area of [`libmatoya`](https://github.com/matoya/libmatoya). The code has been cleaned up and now doesn't require OpenSSL except on Linux. This repo remains for reference only.

@@ -1,5 +1,0 @@
-*.o
-*.obj
-/libuncurl.a
-/libuncurl.lib
-/obj
